@@ -1,0 +1,31 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:Redux_SDK_Manager"
+             x:Class="Redux_SDK_Manager.App"
+             RequestedThemeVariant="Default">
+             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <Application.DataTemplates>
+        <local:ViewLocator />
+    </Application.DataTemplates>
+
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- Font families bundled under Assets/Fonts. The '#Family Name' suffix
+                 selects the face by its internal family name. -->
+            <FontFamily x:Key="JetBrainsMonoLight">avares://Redux-SDK-Manager/Assets/Fonts#JetBrains Mono Light</FontFamily>
+            <FontFamily x:Key="JetBrainsMonoRegular">avares://Redux-SDK-Manager/Assets/Fonts#JetBrains Mono Regular</FontFamily>
+            <FontFamily x:Key="JetBrainsMonoBold">avares://Redux-SDK-Manager/Assets/Fonts#JetBrains Mono Bold</FontFamily>
+
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://Redux-SDK-Manager/Themes/Colors.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme />
+        <StyleInclude Source="avares://Redux-SDK-Manager/Themes/Radii.axaml"/>
+        <StyleInclude Source="avares://Redux-SDK-Manager/Themes/Styles.axaml"/>
+    </Application.Styles>
+</Application>
