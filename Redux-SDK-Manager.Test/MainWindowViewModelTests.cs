@@ -1,15 +1,14 @@
 using Redux_SDK_Manager.ViewModels;
-using Xunit;
 
 namespace Redux_SDK_Manager.Test;
 
 public class MainWindowViewModelTests
 {
-    [Fact]
+    [Test]
     public void Greeting_ReturnsWelcomeMessage()
     {
         var vm = new MainWindowViewModel();
 
-        Assert.Equal("Welcome to Redux SDK Manager", vm.Greeting);
+        Assert.That(vm.Greeting, Is.EqualTo("Welcome to Redux SDK Manager"));
     }
 }
