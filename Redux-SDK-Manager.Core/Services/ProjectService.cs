@@ -30,7 +30,7 @@ public interface IProjectService
     /// <summary>
     /// Adopts an existing pre-manager project (one with no <c>template.version</c>) and brings it to
     /// <paramref name="version"/>. Because the project's original template version is unknown this is
-    /// an overlay only — the target tree is written over the project and stamped, but stale files
+    /// an overlay only. The target tree is written over the project and stamped, but stale files
     /// from the original template that no longer exist in the target cannot be identified or removed
     /// (a later <see cref="UpgradeProject"/> from this version onward handles deletions). Throws if
     /// the path isn't a Unity project or is already a managed project.
@@ -39,7 +39,7 @@ public interface IProjectService
 
     /// <summary>
     /// Registers an already-managed project (one that already has a <c>template.version</c>, e.g. a
-    /// fresh clone from a git repo) with the manager as-is — tracks it in config and touches nothing
+    /// fresh clone from a git repo) with the manager as-is. Tracks it in config and touches nothing
     /// else. Returns the detected version. Throws if the directory is missing or the project isn't
     /// managed (use <see cref="IngestProject"/> for an unmanaged project).
     /// </summary>
@@ -50,8 +50,16 @@ public class ProjectService(
     ITemplateCatalogService catalogService,
     ITemplateVersionService versionService,
     IConfigService configService,
-    IFileSystem fileSystem) : IProjectService
+    IFileSystem fileSystem,
+    ILogService logService,
+    IPromptService promptService) : IProjectService
 {
+    private const string CreateAlert =
+        "New project created. On first launch there will be compiler errors, ignore them and import via thunderkit as normal.";
+
+    private const string ApplyAlert =
+        "Project initialization complete, on next launch there will be compiler errors, ignore them and import via thunderkit as normal.";
+
     public void CreateProject(TemplateVersion version, string targetPath)
     {
         if (fileSystem.Directory.Exists(targetPath) &&
@@ -60,6 +68,8 @@ public class ProjectService(
             throw new InvalidOperationException(
                 $"Target directory '{targetPath}' already exists and is not empty.");
         }
+
+        logService.Info($"Creating project at '{targetPath}' from template {version.Raw}.");
 
         var fetchDir = NewFetchDir();
         try
@@ -73,6 +83,8 @@ public class ProjectService(
         }
 
         TrackProject(targetPath);
+        logService.Info($"Created project at '{targetPath}'.");
+        promptService.Alert(CreateAlert);
     }
 
     public void UpgradeProject(string projectPath, TemplateVersion toVersion)
@@ -81,6 +93,7 @@ public class ProjectService(
             ?? throw new InvalidOperationException(
                 $"'{projectPath}' is not a Redux template project (no readable template.version).");
 
+        logService.Info($"Upgrading '{projectPath}' from {currentVersion.Raw} to {toVersion.Raw}.");
         ApplyVersion(projectPath, toVersion, currentVersion);
         TrackProject(projectPath);
     }
@@ -96,9 +109,10 @@ public class ProjectService(
         if (versionService.DetectProjectVersion(projectPath) is not null)
         {
             throw new InvalidOperationException(
-                $"'{projectPath}' is already a managed project; use UpgradeProject instead.");
+                $"'{projectPath}' is already a managed project. Use UpgradeProject instead.");
         }
 
+        logService.Info($"Ingesting '{projectPath}' at template {version.Raw}.");
         ApplyVersion(projectPath, version, fromVersion: null);
         TrackProject(projectPath);
     }
@@ -112,9 +126,10 @@ public class ProjectService(
 
         var version = versionService.DetectProjectVersion(projectPath)
             ?? throw new InvalidOperationException(
-                $"'{projectPath}' is not a managed project (no template.version); use IngestProject to adopt an unmanaged project.");
+                $"'{projectPath}' is not a managed project (no template.version). Use IngestProject to adopt an unmanaged project.");
 
         TrackProject(projectPath);
+        logService.Info($"Imported '{projectPath}' (template {version.Raw}).");
         return version;
     }
 
@@ -133,11 +148,19 @@ public class ProjectService(
                 catalogService.FetchVersion(fromVersion, oldFetch!);
 
                 var newFiles = new HashSet<string>(EnumerateTemplateFiles(newFetch), StringComparer.OrdinalIgnoreCase);
+                var removed = 0;
                 foreach (var relative in EnumerateTemplateFiles(oldFetch!))
                 {
                     if (newFiles.Contains(relative)) continue;
                     var path = fileSystem.Path.Combine(projectPath, relative);
-                    if (fileSystem.File.Exists(path)) fileSystem.File.Delete(path);
+                    if (!fileSystem.File.Exists(path)) continue;
+                    fileSystem.File.Delete(path);
+                    removed++;
+                }
+
+                if (removed > 0)
+                {
+                    logService.Debug($"Removed {removed} stale template file(s) not present in {toVersion.Raw}.");
                 }
             }
 
@@ -151,6 +174,8 @@ public class ProjectService(
 
         DeleteSdkCopiedFiles(projectPath);
         ClearRegeneratedCaches(projectPath);
+        
+        promptService.Alert(ApplyAlert);
     }
 
     private bool LooksLikeUnityProject(string projectPath) =>
@@ -241,11 +266,12 @@ public class ProjectService(
         }
     }
 
-    // Unity/ThunderKit regenerate these on next open; stale copies break a version bump.
+    // Unity/ThunderKit regenerate these on next open - stale copies break a version bump.
     private void ClearRegeneratedCaches(string projectPath)
     {
         DeleteDirectory(fileSystem.Path.Combine(projectPath, "Library"));
         DeleteDirectory(fileSystem.Path.Combine(projectPath, "Packages", "KSP2_x64"));
+        logService.Debug($"Cleared regenerated caches (Library, Packages/KSP2_x64) for '{projectPath}'.");
     }
 
     // Clears read-only attributes before deleting: git marks its pack files (.idx/.pack) read-only
@@ -266,7 +292,7 @@ public class ProjectService(
         fileSystem.Directory.Delete(dir, recursive: true);
     }
 
-    // Best-effort cleanup of a scratch dir; a leftover temp clone must never abort the operation.
+    // Best-effort cleanup of a scratch dir - a leftover temp clone must never abort the operation.
     private void TryDeleteDirectory(string dir)
     {
         try
@@ -275,11 +301,11 @@ public class ProjectService(
         }
         catch (Exception)
         {
-            // The temp dir is disposable - ignore a cleanup failure.
+            logService.Warn($"Cleanup of temporary directory {dir} failed.");
         }
     }
 
-    // The fetched tree is a git clone; its .git directory must not land in the project.
+    // The fetched tree is a git clone, so its .git directory must not land in the project.
     private static bool IsGitMetadata(string relativePath) =>
         relativePath.Split('/', '\\').Any(segment => segment.Equals(".git", StringComparison.Ordinal));
 

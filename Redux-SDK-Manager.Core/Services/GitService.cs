@@ -30,7 +30,7 @@ public class GitService(IProcessRunner processRunner) : IGitService
         }
         catch (Exception)
         {
-            // Run throws when git isn't on PATH; treat any start failure as "not installed".
+            // Run throws when git isn't on PATH, so treat any start failure as "not installed".
             return false;
         }
     }

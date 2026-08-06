@@ -72,12 +72,12 @@ public class ConfigService : IConfigService
                 config = JsonSerializer.Deserialize<SdkManagerConfig>(_fileSystem.File.ReadAllText(configFilePath));
                 if (config is null)
                 {
-                    _log.Warn($"Config at {configFilePath} deserialized to null; a fresh config will be created.");
+                    _log.Warn($"Config at {configFilePath} deserialized to null. A fresh config will be created.");
                 }
             }
             catch (Exception ex)
             {
-                _log.Warn($"Could not read config at {configFilePath} ({ex.GetType().Name}: {ex.Message}); a fresh config will be created.");
+                _log.Warn($"Could not read config at {configFilePath} ({ex.GetType().Name}: {ex.Message}). A fresh config will be created.");
                 config = null;
             }
         }

@@ -15,10 +15,17 @@ public interface IProcessRunner
     ProcessResult Run(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null);
 
     /// <summary>
-    /// Starts an executable and returns immediately without waiting for it to exit — for
+    /// Starts an executable and returns immediately without waiting for it to exit, for
     /// launching long-running GUI apps (e.g. Unity Hub). Throws if it can't be started.
     /// </summary>
     void Start(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null);
+
+    /// <summary>
+    /// Opens a URL or custom-scheme link (e.g. <c>unityhub://</c>) through the OS shell so the
+    /// registered protocol handler takes it. This is the same shell-execute approach the Launcher
+    /// uses for external links. Throws if it can't be started.
+    /// </summary>
+    void OpenUrl(string url);
 }
 
 public class ProcessRunner : IProcessRunner
@@ -77,5 +84,12 @@ public class ProcessRunner : IProcessRunner
 
         // Fire-and-forget: disposing the handle doesn't terminate the launched process.
         Process.Start(startInfo)?.Dispose();
+    }
+
+    public void OpenUrl(string url)
+    {
+        // UseShellExecute lets the OS resolve the protocol handler (http, unityhub, ...). The handler
+        // owns whatever it launches, so this is fire-and-forget.
+        Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
     }
 }

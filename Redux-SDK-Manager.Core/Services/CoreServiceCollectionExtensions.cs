@@ -1,6 +1,7 @@
 using System;
 using System.IO.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Redux_SDK_Manager.Wrappers;
 using Testably.Abstractions;
 
@@ -11,7 +12,7 @@ public static class CoreServiceCollectionExtensions
 {
     public static IServiceCollection AddReduxSdkManagerCore(this IServiceCollection services)
     {
-        // Infrastructure abstractions (real implementations; tests substitute mocks)
+        // Infrastructure abstractions (real implementations, tests substitute mocks)
         services.AddSingleton<IFileSystem, RealFileSystem>();
         services.AddSingleton(SystemEnvironmentProvider.Instance);
         services.AddSingleton<IProcessRunner, ProcessRunner>();
@@ -24,6 +25,9 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ITemplateCatalogService, TemplateCatalogService>();
         services.AddSingleton<IProjectService, ProjectService>();
         services.AddSingleton<IUnityService, UnityService>();
+
+        // Non-interactive fallback. Interactive frontends (CLI, later GUI) override it.
+        services.TryAddSingleton<IPromptService, DefaultPromptService>();
 
         return services;
     }

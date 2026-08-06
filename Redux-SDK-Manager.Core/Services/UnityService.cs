@@ -9,6 +9,25 @@ using Redux_SDK_Manager.Wrappers;
 
 namespace Redux_SDK_Manager.Services;
 
+/// <summary>Outcome of <see cref="IUnityService.OpenProject"/>.</summary>
+public enum OpenProjectResult
+{
+    /// <summary>The matching editor was installed and launched on the project.</summary>
+    Opened,
+
+    /// <summary>The editor was missing, the user agreed, and a Unity Hub install was started.</summary>
+    InstallStarted,
+
+    /// <summary>The editor was missing and the user declined to install it.</summary>
+    InstallDeclined,
+
+    /// <summary>The project's required Unity version could not be determined.</summary>
+    VersionUnknown,
+
+    /// <summary>The editor was missing and Unity Hub isn't installed to install it.</summary>
+    HubUnavailable
+}
+
 public interface IUnityService
 {
     /// <summary>Unity editors found via Unity Hub's known install locations.</summary>
@@ -21,16 +40,21 @@ public interface IUnityService
     bool IsHubInstalled();
 
     /// <summary>
-    /// Opens a project via Unity Hub, which selects (or offers to install) the matching editor.
-    /// Throws if Unity Hub isn't installed.
+    /// Opens a project by launching its matching installed editor directly
+    /// (<c>Unity.exe -projectPath</c>). When that editor isn't installed, asks (via
+    /// <see cref="IPromptService"/>) whether to install it and, if agreed, opens Unity Hub to
+    /// install it. It does not then open the project. The editor appears once the install finishes,
+    /// so re-run open. See <see cref="OpenProjectResult"/> for the outcomes.
     /// </summary>
-    void OpenProject(string projectPath);
+    OpenProjectResult OpenProject(string projectPath);
 }
 
 public partial class UnityService(
     IFileSystem fileSystem,
     IEnvironmentProvider environmentProvider,
-    IProcessRunner processRunner) : IUnityService
+    IProcessRunner processRunner,
+    IPromptService promptService,
+    ILogService logService) : IUnityService
 {
     private const string UnityExeName = "Unity.exe";
     private const string HubExeName = "Unity Hub.exe";
@@ -47,10 +71,15 @@ public partial class UnityService(
         return byExe.Values.ToList();
     }
 
-    public string? GetProjectUnityVersion(string projectPath)
+    public string? GetProjectUnityVersion(string projectPath) => ReadEditorInfo(projectPath).version;
+
+    // Reads the editor version and its changeset from ProjectSettings/ProjectVersion.txt. The
+    // changeset (from m_EditorVersionWithRevision's "(...)") is what Hub needs to install a version
+    // that isn't in its promoted releases list.
+    private (string? version, string? changeset) ReadEditorInfo(string projectPath)
     {
         var versionFile = fileSystem.Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt");
-        if (!fileSystem.File.Exists(versionFile)) return null;
+        if (!fileSystem.File.Exists(versionFile)) return (null, null);
 
         string content;
         try
@@ -59,23 +88,63 @@ public partial class UnityService(
         }
         catch (Exception)
         {
-            return null;
+            return (null, null);
         }
 
-        var match = EditorVersionRegex().Match(content);
-        return match.Success ? match.Groups["version"].Value.Trim() : null;
+        var version = EditorVersionRegex().Match(content) is { Success: true } versionMatch
+            ? versionMatch.Groups["version"].Value.Trim()
+            : null;
+        var changeset = EditorRevisionRegex().Match(content) is { Success: true } revisionMatch
+            ? revisionMatch.Groups["changeset"].Value.Trim()
+            : null;
+        return (version, changeset);
     }
 
     public bool IsHubInstalled() => FindUnityHub() != null;
 
-    public void OpenProject(string projectPath)
+    public OpenProjectResult OpenProject(string projectPath)
     {
-        var hub = FindUnityHub()
-            ?? throw new InvalidOperationException("Unity Hub is not installed.");
+        logService.Info($"Opening project '{projectPath}'.");
 
-        // Hub CLI: everything after "--" is passed through; it opens the project in the
-        // matching editor, offering to install it if absent.
-        processRunner.Start(hub, ["--", "--projectPath", projectPath]);
+        var (version, changeset) = ReadEditorInfo(projectPath);
+        if (version is null)
+        {
+            logService.Warn($"Could not determine the Unity version for '{projectPath}' (no readable ProjectVersion.txt).");
+            return OpenProjectResult.VersionUnknown;
+        }
+
+        // Opening a project is the editor's job, not Hub's (the Hub CLI has no open command).
+        var install = DetectInstalls()
+            .FirstOrDefault(i => string.Equals(i.Version, version, StringComparison.OrdinalIgnoreCase));
+        if (install is not null)
+        {
+            logService.Info($"Launching Unity {version} on '{projectPath}'.");
+            processRunner.Start(install.ExecutablePath, ["-projectPath", projectPath]);
+            return OpenProjectResult.Opened;
+        }
+
+        var hub = FindUnityHub();
+        if (hub is null)
+        {
+            logService.Warn($"Unity {version} is not installed and Unity Hub is missing - cannot install it.");
+            return OpenProjectResult.HubUnavailable;
+        }
+
+        if (!promptService.Confirm($"Unity {version} is not installed. Install it via Unity Hub?", defaultAnswer: false))
+        {
+            logService.Info($"User declined installing Unity {version}.");
+            return OpenProjectResult.InstallDeclined;
+        }
+
+        // Hand off to Hub through its unityhub:// protocol link (Hub has no reliable headless install
+        // for a project's exact version+changeset) - the changeset pins a version not in Hub's release
+        // list. Opened the Launcher's way - shell-execute so the OS resolves the protocol handler.
+        var installUri = string.IsNullOrEmpty(changeset)
+            ? $"unityhub://{version}"
+            : $"unityhub://{version}/{changeset}";
+        logService.Info($"Unity {version} not installed - opening Unity Hub to install it ({installUri}).");
+        processRunner.OpenUrl(installUri);
+        return OpenProjectResult.InstallStarted;
     }
 
     private IEnumerable<UnityInstall> EnumerateHubFolderInstalls()
@@ -119,11 +188,12 @@ public partial class UnityService(
         {
             var content = fileSystem.File.ReadAllText(path).Trim();
             if (content.Length == 0) return null;
-            // The file holds a JSON string (a quoted path); fall back to the raw text otherwise.
+            // The file holds a JSON string (a quoted path). Fall back to the raw text otherwise.
             return content.StartsWith('"') ? JsonSerializer.Deserialize<string>(content) : content;
         }
         catch (Exception)
         {
+            logService.Warn("Could not read secondary install path...");
             return null;
         }
     }
@@ -167,7 +237,7 @@ public partial class UnityService(
         }
         catch (JsonException)
         {
-            // Malformed editors.json - return whatever parsed before the failure.
+            logService.Warn("Malformed editors.json, list of manually added installs will be partial...");
         }
 
         return results;
@@ -205,4 +275,7 @@ public partial class UnityService(
 
     [GeneratedRegex(@"^m_EditorVersion:\s*(?<version>\S+)", RegexOptions.Multiline)]
     private static partial Regex EditorVersionRegex();
+
+    [GeneratedRegex(@"^m_EditorVersionWithRevision:\s*\S+\s*\((?<changeset>[^)]+)\)", RegexOptions.Multiline)]
+    private static partial Regex EditorRevisionRegex();
 }

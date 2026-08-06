@@ -23,8 +23,12 @@ public class UnityServiceTest
         return (fs, env);
     }
 
-    private static UnityService NewService(MockFileSystem fs, MockEnvironmentProvider env, IProcessRunner? runner = null)
-        => new(fs, env, runner ?? Mock.Of<IProcessRunner>());
+    private static UnityService NewService(MockFileSystem fs, MockEnvironmentProvider env,
+        IProcessRunner? runner = null, IPromptService? prompt = null, ILogService? logService = null)
+        => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(), logService ?? Mock.Of<ILogService>());
+
+    private const string ProjectVersionTxt =
+        "m_EditorVersion: 6000.5.0f1\r\nm_EditorVersionWithRevision: 6000.5.0f1 (88b47c5e7076)\r\n";
 
     private static void WriteFile(MockFileSystem fs, string path, string content)
     {
@@ -56,7 +60,7 @@ public class UnityServiceTest
         var installs = NewService(fs, env).DetectInstalls();
 
         Assert.That(installs.Select(i => i.Version),
-            Is.EquivalentTo(new[] { "6000.4.1f1", "6000.5.0f1", "2022.3.5f1" }));
+            Is.EquivalentTo(["6000.4.1f1", "6000.5.0f1", "2022.3.5f1"]));
     }
 
     [Test]
@@ -95,25 +99,101 @@ public class UnityServiceTest
     }
 
     [Test]
-    public void OpenProject_LaunchesHubWithProjectPath()
+    public void OpenProject_LaunchesInstalledEditorDirectly_WithProjectPath()
     {
         var (fs, env) = BuildEnv();
-        WriteFile(fs, HubExe, "exe");
+        const string editorExe = @"C:\Program Files\Unity\Hub\Editor\6000.5.0f1\Editor\Unity.exe";
+        WriteFile(fs, editorExe, "exe");
+        WriteFile(fs, @"C:\proj\ProjectSettings\ProjectVersion.txt", ProjectVersionTxt);
         var runner = new Mock<IProcessRunner>();
 
-        NewService(fs, env, runner.Object).OpenProject(@"C:\proj");
+        var result = NewService(fs, env, runner.Object).OpenProject(@"C:\proj");
 
-        runner.Verify(r => r.Start(HubExe,
-            It.Is<IReadOnlyList<string>>(a => a.Contains("--projectPath") && a.Contains(@"C:\proj")),
+        Assert.That(result, Is.EqualTo(OpenProjectResult.Opened));
+        runner.Verify(r => r.Start(editorExe,
+            It.Is<IReadOnlyList<string>>(a => a.Contains("-projectPath") && a.Contains(@"C:\proj")),
             It.IsAny<string?>()), Times.Once);
     }
 
     [Test]
-    public void OpenProject_Throws_WhenHubMissing()
+    public void OpenProject_OpensHubInstallLink_WhenEditorMissing_AndConfirmed()
     {
         var (fs, env) = BuildEnv();
-        var service = NewService(fs, env);
+        WriteFile(fs, HubExe, "exe");
+        WriteFile(fs, @"C:\proj\ProjectSettings\ProjectVersion.txt", ProjectVersionTxt);
+        var runner = new Mock<IProcessRunner>();
+        var prompt = new Mock<IPromptService>();
+        prompt.Setup(p => p.Confirm(It.IsAny<string>(), It.IsAny<bool>())).Returns(true);
 
-        Assert.That(() => service.OpenProject(@"C:\proj"), Throws.TypeOf<System.InvalidOperationException>());
+        var result = NewService(fs, env, runner.Object, prompt.Object).OpenProject(@"C:\proj");
+
+        Assert.That(result, Is.EqualTo(OpenProjectResult.InstallStarted));
+        runner.Verify(r => r.OpenUrl("unityhub://6000.5.0f1/88b47c5e7076"), Times.Once);
+    }
+
+    [Test]
+    public void OpenProject_OpensHubInstallLinkWithoutChangeset_WhenRevisionMissing()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+        // ProjectVersion.txt with only the version line - no m_EditorVersionWithRevision changeset.
+        WriteFile(fs, @"C:\proj\ProjectSettings\ProjectVersion.txt", "m_EditorVersion: 6000.5.0f1\r\n");
+        var runner = new Mock<IProcessRunner>();
+        var prompt = new Mock<IPromptService>();
+        prompt.Setup(p => p.Confirm(It.IsAny<string>(), It.IsAny<bool>())).Returns(true);
+
+        var result = NewService(fs, env, runner.Object, prompt.Object).OpenProject(@"C:\proj");
+
+        Assert.That(result, Is.EqualTo(OpenProjectResult.InstallStarted));
+        runner.Verify(r => r.OpenUrl("unityhub://6000.5.0f1"), Times.Once);
+    }
+
+    [Test]
+    public void DetectInstalls_ReturnsValidEntries_AndWarns_WhenEditorsJsonMalformed()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, @"C:\Program Files\Unity\Hub\Editor\6000.5.0f1\Editor\Unity.exe", "exe");
+        WriteFile(fs, @"C:\Users\me\AppData\Roaming\UnityHub\editors.json", "{ not valid json");
+        var log = new Mock<ILogService>();
+
+        var installs = NewService(fs, env, logService: log.Object).DetectInstalls();
+
+        Assert.That(installs.Select(i => i.Version), Is.EquivalentTo(["6000.5.0f1"]));
+        log.Verify(l => l.Warn(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Once);
+    }
+
+    [Test]
+    public void OpenProject_Skips_WhenEditorMissing_AndDeclined()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+        WriteFile(fs, @"C:\proj\ProjectSettings\ProjectVersion.txt", ProjectVersionTxt);
+        var runner = new Mock<IProcessRunner>();
+        var prompt = new Mock<IPromptService>();
+        prompt.Setup(p => p.Confirm(It.IsAny<string>(), It.IsAny<bool>())).Returns(false);
+
+        var result = NewService(fs, env, runner.Object, prompt.Object).OpenProject(@"C:\proj");
+
+        Assert.That(result, Is.EqualTo(OpenProjectResult.InstallDeclined));
+        runner.Verify(r => r.OpenUrl(It.IsAny<string>()), Times.Never);
+        runner.Verify(r => r.Start(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>()), Times.Never);
+    }
+
+    [Test]
+    public void OpenProject_ReturnsHubUnavailable_WhenEditorMissing_AndNoHub()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, @"C:\proj\ProjectSettings\ProjectVersion.txt", ProjectVersionTxt);
+
+        Assert.That(NewService(fs, env).OpenProject(@"C:\proj"), Is.EqualTo(OpenProjectResult.HubUnavailable));
+    }
+
+    [Test]
+    public void OpenProject_ReturnsVersionUnknown_WhenNoProjectVersionFile()
+    {
+        var (fs, env) = BuildEnv();
+        fs.Directory.CreateDirectory(@"C:\proj");
+
+        Assert.That(NewService(fs, env).OpenProject(@"C:\proj"), Is.EqualTo(OpenProjectResult.VersionUnknown));
     }
 }

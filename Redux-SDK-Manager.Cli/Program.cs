@@ -47,8 +47,8 @@ public static class Program
         {
             var services = CliServiceProvider.Build();
 
-            // LogService writes a session header to the console from its constructor; keep it out of
-            // the CLI streams by muting the console across the one resolve that constructs it.
+            // LogService writes a session header to the console from its constructor, so keep it out
+            // of the CLI streams by muting the console across the one resolve that constructs it.
             if (!options.IsVerbose)
             {
                 Console.SetOut(TextWriter.Null);
@@ -58,7 +58,7 @@ public static class Program
             Console.SetOut(Console.Error);
 
             // Info is right for an hours-long GUI session and far too chatty for a command that runs
-            // for seconds; Warn and above still reaches stderr, and the full log still hits the file.
+            // for seconds. Warn and above still reaches stderr, and the full log still hits the file.
             log.MinimumLevel = options.IsVerbose ? LogLevel.Debug : LogLevel.Warn;
 
             return verb(new CliContext(services, output));

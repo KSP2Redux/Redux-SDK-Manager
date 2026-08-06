@@ -25,8 +25,8 @@ public interface ILogService
     string? CurrentLogFilePath { get; }
 
     /// <summary>
-    /// The lowest level that will actually be written. Defaults to <see cref="Services.LogLevel.Info"/>;
-    /// lower it to <see cref="Services.LogLevel.Debug"/> to troubleshoot a specific session.
+    /// The lowest level that will actually be written. Defaults to <see cref="Services.LogLevel.Info"/>.
+    /// Lower it to <see cref="Services.LogLevel.Debug"/> to troubleshoot a specific session.
     /// </summary>
     LogLevel MinimumLevel { get; set; }
 }

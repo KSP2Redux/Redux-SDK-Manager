@@ -44,8 +44,15 @@ public sealed class ImportOptions : ProjectPathOptions;
 [Verb("detect", HelpText = "Report the template version a project is stamped with.")]
 public sealed class DetectOptions : ProjectPathOptions;
 
-[Verb("open", HelpText = "Open a project in Unity via Unity Hub.")]
-public sealed class OpenOptions : ProjectPathOptions;
+[Verb("open", HelpText = "Open a project in its Unity editor, offering to install it via Unity Hub if missing.")]
+public sealed class OpenOptions : ProjectPathOptions
+{
+    [Option('y', "yes", Required = false, HelpText = "Answer yes to prompts (e.g. install a missing editor) without asking.")]
+    public bool Yes { get; set; }
+
+    [Option('n', "no", Required = false, HelpText = "Answer no to prompts (e.g. skip installing a missing editor) without asking.")]
+    public bool No { get; set; }
+}
 
 [Verb("unity", HelpText = "List the Unity editors installed via Unity Hub.")]
 public sealed class UnityOptions : BaseOptions;
