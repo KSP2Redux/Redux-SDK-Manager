@@ -13,6 +13,9 @@ public sealed class CliPromptService : IPromptService
     /// <summary>Set by the verb from --yes/--no. Null means ask interactively.</summary>
     public bool? ForcedAnswer { get; set; }
 
+    /// <summary>Set by the verb from --name (or similar). Null means ask interactively.</summary>
+    public string? ForcedText { get; set; }
+
     public bool Confirm(string message, bool defaultAnswer)
     {
         if (ForcedAnswer is { } forced) return forced;
@@ -33,5 +36,15 @@ public sealed class CliPromptService : IPromptService
     public void Alert(string message)
     {
         Console.Error.WriteLine(message);
+    }
+
+    public string Ask(string message, string defaultValue)
+    {
+        if (ForcedText is not null) return ForcedText;
+
+        Console.Error.Write($"{message} [{defaultValue}]: ");
+
+        var line = Console.In.ReadLine();
+        return string.IsNullOrWhiteSpace(line) ? defaultValue : line.Trim();
     }
 }

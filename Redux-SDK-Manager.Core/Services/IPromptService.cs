@@ -18,6 +18,14 @@ public interface IPromptService
     /// </summary>
     /// <param name="message">What to alert about</param>
     void Alert(string message);
+
+    /// <summary>
+    /// Asks the user for a line of text, returning <paramref name="defaultValue"/> when there is no
+    /// one to ask or the user accepts the default.
+    /// </summary>
+    /// <param name="message">The prompt to show.</param>
+    /// <param name="defaultValue">The value used when nothing is entered.</param>
+    string Ask(string message, string defaultValue);
 }
 
 /// <summary>
@@ -27,7 +35,10 @@ public interface IPromptService
 public sealed class DefaultPromptService : IPromptService
 {
     public bool Confirm(string message, bool defaultAnswer) => defaultAnswer;
+
     public void Alert(string message)
     {
     }
+
+    public string Ask(string message, string defaultValue) => defaultValue;
 }

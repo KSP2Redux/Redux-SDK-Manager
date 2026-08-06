@@ -1,0 +1,12 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
+             x:Class="Redux_SDK_Manager.Views.SettingsView"
+             x:DataType="vm:SettingsViewModel">
+    <TextBlock Text="Settings"
+               Foreground="{StaticResource TextFaintBrush}"
+               FontFamily="{StaticResource JetBrainsMonoLight}"
+               FontSize="28"
+               HorizontalAlignment="Center"
+               VerticalAlignment="Center" />
+</UserControl>

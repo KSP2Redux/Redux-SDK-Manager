@@ -17,6 +17,9 @@ public static class ServiceCollectionExtensions
 
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
+        services.AddTransient<ProjectsViewModel>();
+        services.AddTransient<VersionsViewModel>();
+        services.AddTransient<SettingsViewModel>();
 
         return services;
     }

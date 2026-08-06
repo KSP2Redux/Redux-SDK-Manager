@@ -3,18 +3,198 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
-        mc:Ignorable="d" d:DesignWidth="800" d:DesignHeight="450"
+        xmlns:conv="clr-namespace:Redux_SDK_Manager.Converters"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="680"
         x:Class="Redux_SDK_Manager.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
+        Width="1000" Height="680" MinWidth="900" MinHeight="640" CanResize="True"
+        Background="Transparent"
+        WindowDecorations="None"
+        ExtendClientAreaToDecorationsHint="True"
+        TransparencyLevelHint="Transparent"
+        TransparencyBackgroundFallback="Transparent"
+        WindowStartupLocation="CenterScreen"
+        Icon="/Assets/favicon.ico"
         Title="Redux SDK Manager">
 
-    <Design.DataContext>
-        <!-- This only sets the DataContext for the previewer in an IDE,
-             to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
-        <vm:MainWindowViewModel />
-    </Design.DataContext>
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Ctrl+D1" Command="{Binding GoToTabCommand}" CommandParameter="0" />
+        <KeyBinding Gesture="Ctrl+D2" Command="{Binding GoToTabCommand}" CommandParameter="1" />
+        <KeyBinding Gesture="Ctrl+D3" Command="{Binding GoToTabCommand}" CommandParameter="2" />
+    </Window.KeyBindings>
 
-    <TextBlock Text="{Binding Greeting}"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center" />
+    <Window.Resources>
+        <conv:IntEqualsConverter x:Key="IntEquals" />
+    </Window.Resources>
+
+    <Window.Styles>
+        <!-- Maximized squares the corners (the OS squares the window anyway, so a rounded clip
+             would leave notches at the screen edges). The red frame itself stays in every state. -->
+        <Style Selector="Border#OuterFrame.maximized">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Border#InnerChrome.maximized">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+        <Style Selector="Border#TitleBar.maximized">
+            <Setter Property="CornerRadius" Value="0" />
+        </Style>
+
+        <!-- Window control buttons (minimize / maximize / close) -->
+        <Style Selector="Button.chrome">
+            <Setter Property="Width" Value="42" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="FontFamily" Value="Segoe UI Symbol" />
+            <Setter Property="FontSize" Value="13" />
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{StaticResource OverlayHighlightBrush}" />
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            </Style>
+        </Style>
+        <Style Selector="Button.chrome.close:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource BrandRedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+
+        <!-- Top-bar nav tabs: text (or cog) with a red pipe under the active one -->
+        <Style Selector="RadioButton.nav">
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+            <Setter Property="FontFamily" Value="{StaticResource JetBrainsMonoRegular}" />
+            <Setter Property="FontSize" Value="14" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <StackPanel Background="Transparent">
+                        <ContentPresenter Content="{TemplateBinding Content}"
+                                          Foreground="{TemplateBinding Foreground}"
+                                          Padding="10,4"
+                                          HorizontalAlignment="Center" />
+                        <Border Name="Pipe" Height="2" Margin="6,5,6,0"
+                                CornerRadius="1" Background="Transparent" />
+                    </StackPanel>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover">
+                <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+            </Style>
+            <Style Selector="^:checked">
+                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            </Style>
+            <Style Selector="^:checked /template/ Border#Pipe">
+                <Setter Property="Background" Value="{StaticResource BrandRedBrush}" />
+            </Style>
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Border Name="OuterFrame" BorderBrush="{StaticResource BrandRedBrush}" BorderThickness="2"
+                CornerRadius="{StaticResource RadiusLarge}">
+            <!-- 10 = RadiusLarge (12) minus the outer 2px border, so the two rings nest flush. -->
+            <Border Name="InnerChrome" Background="Black" CornerRadius="10" ClipToBounds="True">
+                <Grid RowDefinitions="Auto,Auto,*">
+
+                    <!-- Sharp background art behind everything -->
+                    <Border Grid.RowSpan="3">
+                        <Border.Background>
+                            <ImageBrush Source="avares://Redux-SDK-Manager/Assets/background.png" Stretch="UniformToFill" />
+                        </Border.Background>
+                    </Border>
+
+                    <!-- Frosted glass: a blurred copy of the same art, clipped in code-behind to
+                         exactly the content panel's rect so only that region reads as frosted. -->
+                    <Border Grid.RowSpan="3" Name="ContentBackdropBlur" IsHitTestVisible="False">
+                        <Border.Background>
+                            <ImageBrush Source="avares://Redux-SDK-Manager/Assets/background.png" Stretch="UniformToFill" />
+                        </Border.Background>
+                        <Border.Effect>
+                            <BlurEffect Radius="36" />
+                        </Border.Effect>
+                    </Border>
+
+                    <!-- Top scrim so the title bar and nav read over busy art -->
+                    <Border Grid.Row="0" Grid.RowSpan="2">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="0%,100%">
+                                <GradientStop Color="#B0000000" Offset="0" />
+                                <GradientStop Color="#00000000" Offset="1" />
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+
+                    <!-- Title bar -->
+                    <Border Name="TitleBar" Grid.Row="0" CornerRadius="10,10,0,0" ClipToBounds="True">
+                        <Grid Height="36" Background="Black" PointerPressed="TitleBar_PointerPressed"
+                              ColumnDefinitions="*,Auto,Auto,Auto">
+                            <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="8"
+                                        VerticalAlignment="Center" Margin="10,0,0,0">
+                                <Image Source="/Assets/favicon.ico" Width="18" Height="18"
+                                       VerticalAlignment="Center" />
+                                <TextBlock Text="Redux SDK Manager"
+                                           Foreground="{StaticResource TextMutedBrush}"
+                                           FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="12"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Grid.Column="1" Classes="chrome" Click="Minimize_Click" Content="&#x2212;" />
+                            <Button Grid.Column="2" Classes="chrome" Click="Maximize_Click">
+                                <TextBlock Name="MaximizeGlyph" Text="&#x25FB;" />
+                            </Button>
+                            <Button Grid.Column="3" Classes="chrome close" Click="Close_Click" Content="&#x2715;" />
+                        </Grid>
+                    </Border>
+
+                    <!-- Top bar: Projects / Versions on the left, settings cog on the right -->
+                    <Grid Grid.Row="1" ColumnDefinitions="Auto,*,Auto" Margin="16,8,12,4">
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="2">
+                            <RadioButton Classes="nav" GroupName="nav" Content="PROJECTS"
+                                         Command="{Binding GoToTabCommand}" CommandParameter="0"
+                                         IsChecked="{Binding CurrentTab, Converter={StaticResource IntEquals}, ConverterParameter=0, Mode=OneWay}" />
+                            <RadioButton Classes="nav" GroupName="nav" Content="VERSIONS"
+                                         Command="{Binding GoToTabCommand}" CommandParameter="1"
+                                         IsChecked="{Binding CurrentTab, Converter={StaticResource IntEquals}, ConverterParameter=1, Mode=OneWay}" />
+                        </StackPanel>
+
+                        <RadioButton Grid.Column="2" Classes="nav" GroupName="nav" ToolTip.Tip="Settings"
+                                     Command="{Binding GoToTabCommand}" CommandParameter="2"
+                                     IsChecked="{Binding CurrentTab, Converter={StaticResource IntEquals}, ConverterParameter=2, Mode=OneWay}">
+                            <Rectangle Width="17" Height="17"
+                                       Fill="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}">
+                                <Rectangle.OpacityMask>
+                                    <ImageBrush Source="avares://Redux-SDK-Manager/Assets/settings-icon.png" />
+                                </Rectangle.OpacityMask>
+                            </Rectangle>
+                        </RadioButton>
+                    </Grid>
+
+                    <!-- Content: frosted glass panel hosting the current section -->
+                    <Border Grid.Row="2" Name="ContentPanel" Margin="16,4,16,16"
+                            Background="{StaticResource GlassSurfaceBrush}"
+                            BorderBrush="{StaticResource GlassSurfaceBorderBrush}" BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusLarge}"
+                            BoxShadow="{StaticResource GlassPanelShadow}">
+                        <ContentControl Content="{Binding CurrentPage}" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Border>
+
+        <!-- Invisible resize grips: with no OS frame these are the resize surface. Hidden while
+             maximized (code-behind). Edges inset 12px so the corner grips win the overlap. -->
+        <Grid Name="ResizeGrips">
+            <Border Background="Transparent" Height="6" VerticalAlignment="Top" Margin="12,0" Cursor="TopSide" Tag="North" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Height="6" VerticalAlignment="Bottom" Margin="12,0" Cursor="BottomSide" Tag="South" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="6" HorizontalAlignment="Left" Margin="0,12" Cursor="LeftSide" Tag="West" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="6" HorizontalAlignment="Right" Margin="0,12" Cursor="RightSide" Tag="East" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Top" Cursor="TopLeftCorner" Tag="NorthWest" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Top" Cursor="TopRightCorner" Tag="NorthEast" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="12" Height="12" HorizontalAlignment="Left" VerticalAlignment="Bottom" Cursor="BottomLeftCorner" Tag="SouthWest" PointerPressed="ResizeGrip_PointerPressed" />
+            <Border Background="Transparent" Width="12" Height="12" HorizontalAlignment="Right" VerticalAlignment="Bottom" Cursor="BottomRightCorner" Tag="SouthEast" PointerPressed="ResizeGrip_PointerPressed" />
+        </Grid>
+    </Panel>
 </Window>

@@ -20,6 +20,7 @@ public static class CoreServiceCollectionExtensions
         // Services
         services.AddSingleton<ILogService, LogService>();
         services.AddSingleton<IConfigService, ConfigService>();
+        services.AddSingleton<IProjectInfoService, ProjectInfoService>();
         services.AddSingleton<ITemplateVersionService, TemplateVersionService>();
         services.AddSingleton<IGitService, GitService>();
         services.AddSingleton<ITemplateCatalogService, TemplateCatalogService>();

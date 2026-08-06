@@ -49,6 +49,7 @@ public interface IProjectService
 public class ProjectService(
     ITemplateCatalogService catalogService,
     ITemplateVersionService versionService,
+    IProjectInfoService projectInfoService,
     IConfigService configService,
     IFileSystem fileSystem,
     ILogService logService,
@@ -69,7 +70,8 @@ public class ProjectService(
                 $"Target directory '{targetPath}' already exists and is not empty.");
         }
 
-        logService.Info($"Creating project at '{targetPath}' from template {version.Raw}.");
+        var name = NonEmptyOr(promptService.Ask("Project name", FolderName(targetPath)), FolderName(targetPath));
+        logService.Info($"Creating project '{name}' at '{targetPath}' from template {version.Raw}.");
 
         var fetchDir = NewFetchDir();
         try
@@ -82,8 +84,9 @@ public class ProjectService(
             TryDeleteDirectory(fetchDir);
         }
 
+        StampProject(targetPath, name, version);
         TrackProject(targetPath);
-        logService.Info($"Created project at '{targetPath}'.");
+        logService.Info($"Created project '{name}' at '{targetPath}'.");
         promptService.Alert(CreateAlert);
     }
 
@@ -93,8 +96,14 @@ public class ProjectService(
             ?? throw new InvalidOperationException(
                 $"'{projectPath}' is not a Redux template project (no readable template.version).");
 
-        logService.Info($"Upgrading '{projectPath}' from {currentVersion.Raw} to {toVersion.Raw}.");
+        // The overlay resets template-owned files (and Unity's productName) but never touches
+        // project.info, so the existing name carries across the upgrade. Fall back to the folder
+        // name for a project the manager has not stamped project.info into yet.
+        var name = NonEmptyOr(projectInfoService.Read(projectPath)?.Name, FolderName(projectPath));
+
+        logService.Info($"Upgrading '{projectPath}' ('{name}') from {currentVersion.Raw} to {toVersion.Raw}.");
         ApplyVersion(projectPath, toVersion, currentVersion);
+        StampProject(projectPath, name, toVersion);
         TrackProject(projectPath);
     }
 
@@ -112,8 +121,10 @@ public class ProjectService(
                 $"'{projectPath}' is already a managed project. Use UpgradeProject instead.");
         }
 
-        logService.Info($"Ingesting '{projectPath}' at template {version.Raw}.");
+        var name = NonEmptyOr(promptService.Ask("Project name", FolderName(projectPath)), FolderName(projectPath));
+        logService.Info($"Ingesting '{projectPath}' as '{name}' at template {version.Raw}.");
         ApplyVersion(projectPath, version, fromVersion: null);
+        StampProject(projectPath, name, version);
         TrackProject(projectPath);
     }
 
@@ -177,6 +188,21 @@ public class ProjectService(
         
         promptService.Alert(ApplyAlert);
     }
+
+    // Records the manager's local metadata (name + version) in project.info, then drops the
+    // template's remote version stamp - locally project.info is the source of truth for the version.
+    private void StampProject(string projectPath, string name, TemplateVersion version)
+    {
+        projectInfoService.Write(projectPath, new ProjectInfo { Name = name, Version = version.Raw });
+
+        var templateStamp = fileSystem.Path.Combine(projectPath, TemplateVersionService.VersionFileName);
+        if (fileSystem.File.Exists(templateStamp)) fileSystem.File.Delete(templateStamp);
+    }
+
+    private string FolderName(string path) => fileSystem.Path.GetFileName(path.TrimEnd('/', '\\'));
+
+    private static string NonEmptyOr(string? value, string fallback) =>
+        string.IsNullOrWhiteSpace(value) ? fallback : value;
 
     private bool LooksLikeUnityProject(string projectPath) =>
         fileSystem.File.Exists(fileSystem.Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt"));

@@ -13,13 +13,18 @@ public static class DetectVerb
         {
             context.Output.Payload(
                 new { managed = false },
-                () => context.Output.Result("not a managed project (no template.version)"));
+                () => context.Output.Result("not a managed project (no project.info or template.version)"));
             return ExitCode.SUCCESS;
         }
 
+        var name = context.Get<IProjectInfoService>().Read(options.Path!)?.Name;
+
         context.Output.Payload(
-            new { managed = true, version = version.Raw, channel = version.Channel.ToString() },
-            () => context.Output.Result($"{version.Raw} ({version.Channel})"));
+            new { managed = true, name, version = version.Raw, channel = version.Channel.ToString() },
+            () => context.Output.Result(
+                string.IsNullOrEmpty(name)
+                    ? $"{version.Raw} ({version.Channel})"
+                    : $"{name} - {version.Raw} ({version.Channel})"));
 
         return ExitCode.SUCCESS;
     }

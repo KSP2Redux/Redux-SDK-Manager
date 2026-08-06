@@ -21,14 +21,19 @@ public class ProjectServiceTest
         fs.File.WriteAllText(path, content);
     }
 
-    // Threads the log/prompt dependencies for the tests that don't care about them. Pass explicit
-    // mocks when a test needs to assert on Alert or a logged warning.
+    private static ProjectInfoService NewInfo(MockFileSystem fs) => new(fs, Mock.Of<ILogService>());
+
+    private static TemplateVersionService NewVersionService(MockFileSystem fs) => new(fs, NewInfo(fs));
+
+    // Threads the info/log/prompt dependencies for the tests that don't care about them. The default
+    // prompt is a DefaultPromptService so Ask returns the folder-name default. Pass explicit mocks
+    // when a test needs to assert on Alert or a logged warning.
     private static ProjectService NewService(
         ITemplateCatalogService catalog, ITemplateVersionService versionService,
         IConfigService config, MockFileSystem fs,
         IPromptService? prompt = null, ILogService? log = null)
-        => new(catalog, versionService, config, fs,
-            log ?? Mock.Of<ILogService>(), prompt ?? Mock.Of<IPromptService>());
+        => new(catalog, versionService, NewInfo(fs), config, fs,
+            log ?? Mock.Of<ILogService>(), prompt ?? new DefaultPromptService());
 
     // --- CreateProject ---
 
@@ -52,7 +57,13 @@ public class ProjectServiceTest
         var service = NewService(catalog.Object, Mock.Of<ITemplateVersionService>(), configMock.Object, fs);
         service.CreateProject(TemplateVersion.Parse("26w32a"), TargetPath);
 
-        Assert.That(fs.File.ReadAllText(fs.Path.Combine(TargetPath, "template.version")), Is.EqualTo("26w32a"));
+        // project.info is the local source of truth (name defaults to the folder), and the template's
+        // remote version stamp is dropped locally.
+        var info = NewInfo(fs).Read(TargetPath);
+        Assert.That(info, Is.Not.Null);
+        Assert.That(info!.Name, Is.EqualTo("NewMod"));
+        Assert.That(info.Version, Is.EqualTo("26w32a"));
+        Assert.That(fs.File.Exists(fs.Path.Combine(TargetPath, "template.version")), Is.False);
         Assert.That(fs.File.Exists(fs.Path.Combine(TargetPath, "Assets", "foo.txt")), Is.True);
         Assert.That(fs.Directory.Exists(fs.Path.Combine(TargetPath, ".git")), Is.False);
         Assert.That(config.ProjectPaths, Does.Contain(TargetPath));
@@ -120,6 +131,27 @@ public class ProjectServiceTest
         prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Once);
     }
 
+    [Test]
+    public void CreateProject_RecordsPromptedName_InProjectInfo()
+    {
+        var fs = NewFs();
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+
+        var catalog = new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.FetchVersion(It.IsAny<TemplateVersion>(), It.IsAny<string>()))
+            .Callback<TemplateVersion, string>((_, dir) =>
+                WriteFile(fs, fs.Path.Combine(dir, "template.version"), "26w32a"));
+
+        var prompt = new Mock<IPromptService>();
+        prompt.Setup(p => p.Ask(It.IsAny<string>(), It.IsAny<string>())).Returns("Cool Mod");
+
+        var service = NewService(catalog.Object, Mock.Of<ITemplateVersionService>(), configMock.Object, fs, prompt.Object);
+        service.CreateProject(TemplateVersion.Parse("26w32a"), TargetPath);
+
+        Assert.That(NewInfo(fs).Read(TargetPath)!.Name, Is.EqualTo("Cool Mod"));
+    }
+
     // --- UpgradeProject ---
 
     [Test]
@@ -156,11 +188,13 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
         service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
-        // template.version + template-owned files overlaid to the new version
-        Assert.That(fs.File.ReadAllText(fs.Path.Combine(ProjectPath, "template.version")), Is.EqualTo("26w32a"));
+        // version bumped in project.info (name preserved), template-owned files overlaid
+        var upgraded = NewInfo(fs).Read(ProjectPath);
+        Assert.That(upgraded!.Version, Is.EqualTo("26w32a"));
+        Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "template.version")), Is.False);
         Assert.That(fs.File.ReadAllText(fs.Path.Combine(ProjectPath, "Assets", "boot-ksp.unity")), Is.EqualTo("new-boot"));
         // old-only template file removed
         Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "Packages", "com.unity.postprocessing@3.2.2", "Foo.cs")), Is.False);
@@ -190,10 +224,32 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
         service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
         Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "Packages", "packages-lock.json")), Is.False);
+    }
+
+    [Test]
+    public void UpgradeProject_PreservesProjectInfoName_AndBumpsVersion()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "project.info"), "name = \"Kept Name\"\nversion = \"0.2.8.5\"\n");
+
+        var catalog = new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.FetchVersion(It.IsAny<TemplateVersion>(), It.IsAny<string>()))
+            .Callback<TemplateVersion, string>((_, dir) =>
+                WriteFile(fs, fs.Path.Combine(dir, "template.version"), "26w32a"));
+
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
+        service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
+
+        var info = NewInfo(fs).Read(ProjectPath);
+        Assert.That(info!.Name, Is.EqualTo("Kept Name"));
+        Assert.That(info.Version, Is.EqualTo("26w32a"));
     }
 
     [Test]
@@ -206,7 +262,7 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
 
         Assert.That(() => service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a")),
             Throws.TypeOf<System.InvalidOperationException>());
@@ -234,7 +290,7 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
         service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
         var manifest = fs.File.ReadAllText(fs.Path.Combine(ProjectPath, "Packages", "manifest.json"));
@@ -272,10 +328,14 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(config);
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
         service.IngestProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
-        Assert.That(fs.File.ReadAllText(fs.Path.Combine(ProjectPath, "template.version")), Is.EqualTo("26w32a"));
+        // Stamped into project.info (name defaults to the folder), remote stamp dropped.
+        var info = NewInfo(fs).Read(ProjectPath);
+        Assert.That(info!.Name, Is.EqualTo("ExistingMod"));
+        Assert.That(info.Version, Is.EqualTo("26w32a"));
+        Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "template.version")), Is.False);
         Assert.That(fs.File.ReadAllText(fs.Path.Combine(ProjectPath, "Assets", "boot-ksp.unity")), Is.EqualTo("new-boot"));
         Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "Assets", "ImportKsp2ToEditor.asset")), Is.False);
         Assert.That(fs.Directory.Exists(fs.Path.Combine(ProjectPath, "Library")), Is.False);
@@ -294,7 +354,7 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
 
         Assert.That(() => service.IngestProject(ProjectPath, TemplateVersion.Parse("26w32a")),
             Throws.TypeOf<System.InvalidOperationException>());
@@ -312,7 +372,7 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
 
         Assert.That(() => service.IngestProject(ProjectPath, TemplateVersion.Parse("26w32a")),
             Throws.TypeOf<System.InvalidOperationException>());
@@ -334,7 +394,7 @@ public class ProjectServiceTest
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
         var prompt = new Mock<IPromptService>();
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs, prompt.Object);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs, prompt.Object);
         service.IngestProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
         prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Once);
@@ -354,7 +414,7 @@ public class ProjectServiceTest
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(config);
 
-        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs);
         var version = service.ImportProject(ProjectPath);
 
         Assert.That(version.Raw, Is.EqualTo("0.2.8.5"));
@@ -375,7 +435,7 @@ public class ProjectServiceTest
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
         var prompt = new Mock<IPromptService>();
 
-        var service = NewService(Mock.Of<ITemplateCatalogService>(), new TemplateVersionService(fs), configMock.Object, fs, prompt.Object);
+        var service = NewService(Mock.Of<ITemplateCatalogService>(), NewVersionService(fs), configMock.Object, fs, prompt.Object);
         service.ImportProject(ProjectPath);
 
         prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Never);
@@ -389,7 +449,7 @@ public class ProjectServiceTest
 
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
-        var service = NewService(Mock.Of<ITemplateCatalogService>(), new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(Mock.Of<ITemplateCatalogService>(), NewVersionService(fs), configMock.Object, fs);
 
         Assert.That(() => service.ImportProject(ProjectPath), Throws.TypeOf<System.InvalidOperationException>());
     }
@@ -400,7 +460,7 @@ public class ProjectServiceTest
         var fs = NewFs();
         var configMock = new Mock<IConfigService>();
         configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
-        var service = NewService(Mock.Of<ITemplateCatalogService>(), new TemplateVersionService(fs), configMock.Object, fs);
+        var service = NewService(Mock.Of<ITemplateCatalogService>(), NewVersionService(fs), configMock.Object, fs);
 
         Assert.That(() => service.ImportProject(@"C:\does\not\exist"), Throws.TypeOf<System.InvalidOperationException>());
     }

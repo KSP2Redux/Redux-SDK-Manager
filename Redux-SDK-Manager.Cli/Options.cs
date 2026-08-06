@@ -30,10 +30,18 @@ public abstract class ProjectVersionOptions : ProjectPathOptions
 public sealed class VersionsOptions : BaseOptions;
 
 [Verb("create", HelpText = "Create a new project from a template version into an empty directory.")]
-public sealed class CreateOptions : ProjectVersionOptions;
+public sealed class CreateOptions : ProjectVersionOptions
+{
+    [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
+    public string? Name { get; set; }
+}
 
 [Verb("ingest", HelpText = "Adopt an existing pre-manager project and bring it to a template version.")]
-public sealed class IngestOptions : ProjectVersionOptions;
+public sealed class IngestOptions : ProjectVersionOptions
+{
+    [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
+    public string? Name { get; set; }
+}
 
 [Verb("upgrade", HelpText = "Upgrade a managed project to a template version.")]
 public sealed class UpgradeOptions : ProjectVersionOptions;

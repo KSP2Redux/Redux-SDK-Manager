@@ -14,6 +14,9 @@ public static class CreateVerb
             return context.Output.Fail(ExitCode.GIT_UNAVAILABLE, "git is not installed or not on PATH.");
         }
 
+        // --name feeds the project-name prompt without asking (like --yes/--no for confirmations).
+        context.Get<CliPromptService>().ForcedText = options.Name;
+
         context.Output.Progress($"Creating project at {options.Path} from {options.Version}...");
         try
         {
