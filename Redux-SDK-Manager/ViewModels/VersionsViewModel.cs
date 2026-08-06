@@ -41,7 +41,7 @@ public partial class VersionsViewModel : ViewModelBase
         _log = log;
     }
 
-    public ObservableCollection<VersionCatalogItemViewModel> Versions { get; } = [];
+    public ObservableCollection<VersionCatalogGroupViewModel> Groups { get; } = [];
 
     [ObservableProperty]
     private bool _isBusy;
@@ -49,7 +49,7 @@ public partial class VersionsViewModel : ViewModelBase
     [ObservableProperty]
     private bool _hasLoaded;
 
-    public bool HasVersions => Versions.Count > 0;
+    public bool HasVersions => Groups.Count > 0;
 
     [RelayCommand]
     private async Task Refresh()
@@ -71,17 +71,20 @@ public partial class VersionsViewModel : ViewModelBase
             });
 
             var showSnapshots = _config.Config.ShowSnapshotVersions;
+            var visible = infos.Where(i => showSnapshots || i.Version.Channel != TemplateChannel.Snapshot);
 
-            Versions.Clear();
-            var ordered = infos
-                .Where(i => showSnapshots || i.Version.Channel != TemplateChannel.Snapshot)
-                .OrderBy(i => Array.IndexOf(ChannelOrder, i.Version.Channel))
-                .ThenBy(i => i.Version, TemplateVersion.NewestFirst);
-
-            foreach (var info in ordered)
+            Groups.Clear();
+            foreach (var channel in ChannelOrder)
             {
-                var isInstalled = info.UnityVersion is not null && installed.Contains(info.UnityVersion);
-                Versions.Add(new VersionCatalogItemViewModel(info, isInstalled));
+                var items = visible
+                    .Where(i => i.Version.Channel == channel)
+                    .OrderBy(i => i.Version, TemplateVersion.NewestFirst)
+                    .Select(i => new VersionCatalogItemViewModel(
+                        i, i.UnityVersion is not null && installed.Contains(i.UnityVersion)))
+                    .ToList();
+                if (items.Count == 0) continue;
+
+                Groups.Add(new VersionCatalogGroupViewModel(channel.ToString(), items));
             }
 
             HasLoaded = true;

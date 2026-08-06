@@ -40,6 +40,9 @@ public class VersionsViewModelTests
         IDialogService? dialog = null, ILogService? log = null)
         => new(config, catalog, unity, dialog ?? Mock.Of<IDialogService>(), log ?? Mock.Of<ILogService>());
 
+    private static IEnumerable<VersionCatalogItemViewModel> AllItems(VersionsViewModel vm)
+        => vm.Groups.SelectMany(g => g.Items);
+
     [Test]
     public async Task Refresh_BuildsRows_WithInstalledStatus()
     {
@@ -49,8 +52,8 @@ public class VersionsViewModelTests
         var vm = NewVm(Config().Object, catalog.Object, unity.Object);
         await vm.RefreshCommand.ExecuteAsync(null);
 
-        var installed = vm.Versions.Single(v => v.Raw == "0.2.8.5");
-        var missing = vm.Versions.Single(v => v.Raw == "0.2.10.0");
+        var installed = AllItems(vm).Single(v => v.Raw == "0.2.8.5");
+        var missing = AllItems(vm).Single(v => v.Raw == "0.2.10.0");
         Assert.That(installed.IsInstalled, Is.True);
         Assert.That(installed.CanInstall, Is.False);
         Assert.That(missing.IsInstalled, Is.False);
@@ -66,11 +69,12 @@ public class VersionsViewModelTests
 
         await vm.RefreshCommand.ExecuteAsync(null);
 
-        Assert.That(vm.Versions.Select(v => v.Raw), Is.EqualTo(new[] { "0.2.10.0" }));
+        Assert.That(vm.Groups.Select(g => g.Channel), Is.EqualTo(new[] { "Release" }));
+        Assert.That(AllItems(vm).Select(v => v.Raw), Is.EqualTo(new[] { "0.2.10.0" }));
     }
 
     [Test]
-    public async Task Refresh_ShowsSnapshots_WhenSettingOn_ReleasesFirstNewestFirst()
+    public async Task Refresh_GroupsByChannel_ReleasesFirstNewestFirst()
     {
         var catalog = Catalog(
             Info("0.2.8.5", "6000.4.1f1"), Info("26w32a", "6000.4.1f1"),
@@ -79,9 +83,10 @@ public class VersionsViewModelTests
 
         await vm.RefreshCommand.ExecuteAsync(null);
 
-        // Releases first (newest first), then snapshots (newest first).
-        Assert.That(vm.Versions.Select(v => v.Raw),
-            Is.EqualTo(new[] { "0.2.10.0", "0.2.8.5", "26w32b", "26w32a" }));
+        Assert.That(vm.Groups.Select(g => g.Channel), Is.EqualTo(new[] { "Release", "Snapshot" }));
+        // Newest first within each channel section.
+        Assert.That(vm.Groups[0].Items.Select(i => i.Raw), Is.EqualTo(new[] { "0.2.10.0", "0.2.8.5" }));
+        Assert.That(vm.Groups[1].Items.Select(i => i.Raw), Is.EqualTo(new[] { "26w32b", "26w32a" }));
     }
 
     [Test]
@@ -92,7 +97,7 @@ public class VersionsViewModelTests
 
         await vm.RefreshCommand.ExecuteAsync(null);
 
-        var row = vm.Versions.Single();
+        var row = AllItems(vm).Single();
         Assert.That(row.IsInstalled, Is.False);
         Assert.That(row.CanInstall, Is.False);
         Assert.That(row.UnityVersionLabel, Is.EqualTo("Unity version unknown"));
@@ -109,7 +114,7 @@ public class VersionsViewModelTests
 
         var vm = NewVm(Config().Object, catalog.Object, unity.Object, dialog.Object);
         await vm.RefreshCommand.ExecuteAsync(null);
-        await vm.InstallUnityCommand.ExecuteAsync(vm.Versions.Single());
+        await vm.InstallUnityCommand.ExecuteAsync(AllItems(vm).Single());
 
         unity.Verify(u => u.InstallUnityVersion("6000.5.0f1", "88b47c5e7076"), Times.Once);
         dialog.Verify(d => d.AlertAsync("Install Unity", It.IsAny<string>()), Times.Once);
