@@ -176,6 +176,27 @@ public class ProjectServiceTest
     }
 
     [Test]
+    public void UpgradeProject_DeletesPackagesLock_SoDependenciesReresolve()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "template.version"), "0.2.8.5");
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "Packages", "packages-lock.json"), "{ \"dependencies\": {} }");
+
+        var catalog = new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.FetchVersion(It.IsAny<TemplateVersion>(), It.IsAny<string>()))
+            .Callback<TemplateVersion, string>((_, dir) =>
+                WriteFile(fs, fs.Path.Combine(dir, "template.version"), "26w32a"));
+
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+
+        var service = NewService(catalog.Object, new TemplateVersionService(fs), configMock.Object, fs);
+        service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
+
+        Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "Packages", "packages-lock.json")), Is.False);
+    }
+
+    [Test]
     public void UpgradeProject_Throws_WhenNoTemplateVersion()
     {
         var fs = NewFs();

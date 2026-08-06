@@ -266,12 +266,18 @@ public class ProjectService(
         }
     }
 
-    // Unity/ThunderKit regenerate these on next open - stale copies break a version bump.
+    // Unity/ThunderKit regenerate these on next open - stale copies break a version bump. Dropping
+    // packages-lock.json forces the package manager to re-resolve every dependency against the
+    // freshly applied manifest instead of reusing pinned versions from before the upgrade.
     private void ClearRegeneratedCaches(string projectPath)
     {
         DeleteDirectory(fileSystem.Path.Combine(projectPath, "Library"));
         DeleteDirectory(fileSystem.Path.Combine(projectPath, "Packages", "KSP2_x64"));
-        logService.Debug($"Cleared regenerated caches (Library, Packages/KSP2_x64) for '{projectPath}'.");
+
+        var packagesLock = fileSystem.Path.Combine(projectPath, "Packages", "packages-lock.json");
+        if (fileSystem.File.Exists(packagesLock)) fileSystem.File.Delete(packagesLock);
+
+        logService.Debug($"Cleared regenerated caches (Library, Packages/KSP2_x64, packages-lock.json) for '{projectPath}'.");
     }
 
     // Clears read-only attributes before deleting: git marks its pack files (.idx/.pack) read-only
