@@ -32,6 +32,7 @@ public static class CreateVerb
             new { ok = true, path = options.Path, version = options.Version },
             () => context.Output.Result($"Created project at {options.Path} (version {options.Version})."));
 
+        SetupRunner.RunAfter(context, options.Path!, options);
         return ExitCode.SUCCESS;
     }
 }

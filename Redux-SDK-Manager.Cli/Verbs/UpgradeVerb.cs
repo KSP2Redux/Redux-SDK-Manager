@@ -29,6 +29,7 @@ public static class UpgradeVerb
             new { ok = true, path = options.Path, version = options.Version },
             () => context.Output.Result($"Upgraded {options.Path} to version {options.Version}."));
 
+        SetupRunner.RunAfter(context, options.Path!, options);
         return ExitCode.SUCCESS;
     }
 }

@@ -18,7 +18,9 @@ public class MainWindowViewModelTests
         return new ProjectsViewModel(config.Object, Mock.Of<IProjectInfoService>(),
             Mock.Of<ITemplateVersionService>(), Mock.Of<IUnityService>(), Mock.Of<IProjectService>(),
             Mock.Of<ITemplateCatalogService>(), Mock.Of<IGitService>(), Mock.Of<IFilePickerService>(),
-            Mock.Of<IDialogService>(), new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Windows)),
+            Mock.Of<IDialogService>(), Mock.Of<IProcessRunner>(), Mock.Of<IProjectSetupService>(),
+            Mock.Of<IKsp2DetectorService>(),
+            new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Windows)),
             Mock.Of<ILogService>());
     }
 
@@ -27,7 +29,8 @@ public class MainWindowViewModelTests
         var config = new Mock<IConfigService>();
         config.Setup(c => c.Config).Returns(new SdkManagerConfig());
         return new SettingsViewModel(config.Object, Mock.Of<IProcessRunner>(),
-            Mock.Of<IDialogService>(), Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(), Mock.Of<ILogService>());
+            Mock.Of<IDialogService>(), Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(),
+            Mock.Of<IKsp2DetectorService>(), Mock.Of<IFilePickerService>(), Mock.Of<ILogService>());
     }
 
     private static VersionsViewModel NewVersions(Mock<ITemplateCatalogService>? catalog = null)

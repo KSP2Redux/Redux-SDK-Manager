@@ -113,7 +113,7 @@ public class ProjectServiceTest
     }
 
     [Test]
-    public void CreateProject_AlertsUser_AboutPostImportCompilerErrors()
+    public void CreateProject_DoesNotAlert_SinceAutomatedSetupHandlesImport()
     {
         var fs = NewFs();
         var configMock = new Mock<IConfigService>();
@@ -128,7 +128,7 @@ public class ProjectServiceTest
         var service = NewService(catalog.Object, Mock.Of<ITemplateVersionService>(), configMock.Object, fs, prompt.Object);
         service.CreateProject(TemplateVersion.Parse("26w32a"), TargetPath);
 
-        prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Once);
+        prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Never);
     }
 
     [Test]
@@ -507,7 +507,7 @@ public class ProjectServiceTest
     }
 
     [Test]
-    public void IngestProject_AlertsUser_AboutPostImportCompilerErrors()
+    public void IngestProject_DoesNotAlert_SinceAutomatedSetupHandlesImport()
     {
         var fs = NewFs();
         WriteFile(fs, fs.Path.Combine(ProjectPath, "ProjectSettings", "ProjectVersion.txt"), "m_EditorVersion: 6000.4.1f1");
@@ -524,7 +524,7 @@ public class ProjectServiceTest
         var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs, prompt.Object);
         service.IngestProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
-        prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Once);
+        prompt.Verify(p => p.Alert(It.IsAny<string>()), Times.Never);
     }
 
     // --- ImportProject ---

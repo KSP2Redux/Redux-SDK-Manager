@@ -28,6 +28,8 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ISdkEmbedService, SdkEmbedService>();
         services.AddSingleton<IProjectService, ProjectService>();
         services.AddSingleton<IUnityService, UnityService>();
+        services.AddSingleton<IKsp2DetectorService, Ksp2DetectorService>();
+        services.AddSingleton<IProjectSetupService, ProjectSetupService>();
         services.AddSingleton<IAppVersion, AppVersion>();
         services.AddSingleton<IReleaseClient, GitHubReleaseClient>();
         services.AddSingleton<IFileDownloader, HttpFileDownloader>();

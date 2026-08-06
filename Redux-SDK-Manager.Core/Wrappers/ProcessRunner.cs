@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace Redux_SDK_Manager.Wrappers;
 
@@ -26,6 +29,14 @@ public interface IProcessRunner
     /// uses for external links. Throws if it can't be started.
     /// </summary>
     void OpenUrl(string url);
+
+    /// <summary>
+    /// Starts an executable and asynchronously waits for it to exit, returning its exit code. Output is
+    /// left to the process (e.g. a headless Unity run writing its own log file). Cancelling kills the
+    /// process. Throws if it can't be started.
+    /// </summary>
+    Task<int> RunToExitAsync(
+        string fileName, IReadOnlyList<string> arguments, string? workingDirectory, CancellationToken cancellationToken);
 }
 
 public class ProcessRunner : IProcessRunner
@@ -91,5 +102,44 @@ public class ProcessRunner : IProcessRunner
         // UseShellExecute lets the OS resolve the protocol handler (http, unityhub, ...). The handler
         // owns whatever it launches, so this is fire-and-forget.
         Process.Start(new ProcessStartInfo(url) { UseShellExecute = true })?.Dispose();
+    }
+
+    public async Task<int> RunToExitAsync(
+        string fileName, IReadOnlyList<string> arguments, string? workingDirectory, CancellationToken cancellationToken)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        if (!string.IsNullOrEmpty(workingDirectory))
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        using var process = new Process();
+        process.StartInfo = startInfo;
+        process.Start();
+
+        try
+        {
+            await process.WaitForExitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation means "stop the setup" - take the launched process down with it.
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); }
+            catch { /* already gone */ }
+            throw;
+        }
+
+        return process.ExitCode;
     }
 }

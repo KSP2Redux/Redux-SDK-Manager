@@ -3,6 +3,12 @@
              xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
              x:Class="Redux_SDK_Manager.Views.ProjectsView"
              x:DataType="vm:ProjectsViewModel">
+    <UserControl.Styles>
+        <!-- A project mid setup dims and can't be acted on until it finishes. -->
+        <Style Selector="Border.settingup">
+            <Setter Property="Opacity" Value="0.55" />
+        </Style>
+    </UserControl.Styles>
     <Panel>
         <Grid RowDefinitions="Auto,*" Margin="18">
             <!-- Header -->
@@ -33,7 +39,8 @@
                             <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
                                     BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
                                     CornerRadius="{StaticResource RadiusMedium}"
-                                    Padding="14,12" Margin="0,0,0,10">
+                                    Padding="14,12" Margin="0,0,0,10"
+                                    Classes.settingup="{Binding IsSettingUp}">
                                 <Grid ColumnDefinitions="*,Auto">
                                     <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding Name}"
@@ -44,18 +51,28 @@
                                         <TextBlock Text="{Binding Path}"
                                                    Foreground="{StaticResource TextFaintBrush}" FontSize="11"
                                                    TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding SetupStatus}" IsVisible="{Binding IsSettingUp}"
+                                                   Foreground="{StaticResource BrandRedBrush}"
+                                                   FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="11" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                                                 VerticalAlignment="Center">
-                                        <Button Content="Open" Classes="success"
-                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenCommand}"
+                                        <!-- Kept enabled during setup so the log folder is reachable. -->
+                                        <Button Content="Folder"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenFolderCommand}"
                                                 CommandParameter="{Binding}" />
-                                        <Button Content="Upgrade"
-                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).UpgradeCommand}"
-                                                CommandParameter="{Binding}" />
-                                        <Button Content="Remove" Classes="danger"
-                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).RemoveCommand}"
-                                                CommandParameter="{Binding}" />
+                                        <StackPanel Orientation="Horizontal" Spacing="8"
+                                                    IsEnabled="{Binding !IsSettingUp}">
+                                            <Button Content="Open" Classes="success"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Upgrade"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).UpgradeCommand}"
+                                                    CommandParameter="{Binding}" />
+                                            <Button Content="Remove" Classes="danger"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).RemoveCommand}"
+                                                    CommandParameter="{Binding}" />
+                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Border>

@@ -26,41 +26,75 @@ public abstract class ProjectVersionOptions : ProjectPathOptions
     public string? Version { get; set; }
 }
 
+/// <summary>Options a verb carries when it can run automated project setup afterwards.</summary>
+public interface ISetupCapableOptions
+{
+    /// <summary>Skip the automated ThunderKit import + pipeline that would otherwise run after the verb.</summary>
+    bool NoSetup { get; }
+
+    /// <summary>Path to KSP2_x64.exe to import from, overriding the configured one for this run.</summary>
+    string? Ksp2 { get; }
+}
+
 [Verb("versions", HelpText = "List the template versions available in the distribution repo.")]
 public sealed class VersionsOptions : BaseOptions;
 
 [Verb("create", HelpText = "Create a new project from a template version into an empty directory.")]
-public sealed class CreateOptions : ProjectVersionOptions
+public sealed class CreateOptions : ProjectVersionOptions, ISetupCapableOptions
 {
     [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
     public string? Name { get; set; }
 
     [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
     public bool EmbedSdk { get; set; }
+
+    [Option("no-setup", Required = false, HelpText = "Skip the automated ThunderKit import + pipeline after creating.")]
+    public bool NoSetup { get; set; }
+
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe for automated setup, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
 }
 
 [Verb("ingest", HelpText = "Adopt an existing pre-manager project and bring it to a template version.")]
-public sealed class IngestOptions : ProjectVersionOptions
+public sealed class IngestOptions : ProjectVersionOptions, ISetupCapableOptions
 {
     [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
     public string? Name { get; set; }
 
     [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
     public bool EmbedSdk { get; set; }
+
+    [Option("no-setup", Required = false, HelpText = "Skip the automated ThunderKit import + pipeline after adding.")]
+    public bool NoSetup { get; set; }
+
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe for automated setup, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
 }
 
 [Verb("upgrade", HelpText = "Upgrade a managed project to a template version.")]
-public sealed class UpgradeOptions : ProjectVersionOptions
+public sealed class UpgradeOptions : ProjectVersionOptions, ISetupCapableOptions
 {
     [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
     public bool EmbedSdk { get; set; }
+
+    [Option("no-setup", Required = false, HelpText = "Skip the automated ThunderKit import + pipeline after upgrading.")]
+    public bool NoSetup { get; set; }
+
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe for automated setup, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
 }
 
 [Verb("import", HelpText = "Register an already-managed project (has template.version) with the manager, unchanged.")]
-public sealed class ImportOptions : ProjectPathOptions
+public sealed class ImportOptions : ProjectPathOptions, ISetupCapableOptions
 {
     [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
     public bool EmbedSdk { get; set; }
+
+    [Option("no-setup", Required = false, HelpText = "Skip the automated ThunderKit import + pipeline after registering.")]
+    public bool NoSetup { get; set; }
+
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe for automated setup, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
 }
 
 [Verb("detect", HelpText = "Report the template version a project is stamped with.")]

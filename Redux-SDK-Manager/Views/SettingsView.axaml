@@ -41,6 +41,31 @@
                                TextWrapping="Wrap" Margin="28,0,0,0" />
                 </StackPanel>
             </Border>
+
+            <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
+                    BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusMedium}" Padding="14,12">
+                <StackPanel Spacing="4">
+                    <CheckBox IsChecked="{Binding AutoRunProjectSetup, Mode=TwoWay}"
+                              Content="Auto-run project setup"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="14" />
+                    <TextBlock Text="After creating, adding, importing, or upgrading a project, run the ThunderKit import and the Import KSP2 to Editor pipeline automatically. Needs the KSP2 path below (you'll be prompted if it isn't set). On by default."
+                               Foreground="{StaticResource TextFaintBrush}"
+                               FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="11"
+                               TextWrapping="Wrap" Margin="28,0,0,0" />
+                    <Grid ColumnDefinitions="*,Auto,Auto" Margin="28,8,0,0">
+                        <TextBox Grid.Column="0" Text="{Binding Ksp2ExePath, Mode=TwoWay}"
+                                 PlaceholderText="Path to KSP2_x64.exe"
+                                 FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="12"
+                                 VerticalAlignment="Center" />
+                        <Button Grid.Column="1" Content="Detect" Margin="8,0,0,0"
+                                Command="{Binding DetectKsp2Command}" />
+                        <Button Grid.Column="2" Content="Browse" Margin="8,0,0,0"
+                                Command="{Binding BrowseKsp2Command}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Footer: utilities + version -->

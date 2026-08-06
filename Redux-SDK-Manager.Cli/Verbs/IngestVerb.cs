@@ -32,6 +32,7 @@ public static class IngestVerb
             new { ok = true, path = options.Path, version = options.Version },
             () => context.Output.Result($"Ingested {options.Path} at version {options.Version}."));
 
+        SetupRunner.RunAfter(context, options.Path!, options);
         return ExitCode.SUCCESS;
     }
 }

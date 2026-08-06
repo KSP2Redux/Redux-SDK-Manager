@@ -4,11 +4,15 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
+using Redux_SDK_Manager.ViewModels;
 
 namespace Redux_SDK_Manager.Views;
 
 public partial class MainWindow : Window
 {
+    // Set once the user has confirmed closing over a running setup, so the second Close() goes through.
+    private bool _forceClose;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -29,6 +33,25 @@ public partial class MainWindow : Window
         if (change.Property == WindowStateProperty)
         {
             UpdateMaximizedState();
+        }
+    }
+
+    // Warn before closing while a project is still being set up: the headless Unity run dies with the
+    // app and the project would be left half-imported.
+    protected override async void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        if (_forceClose || e.Cancel) return;
+        if (DataContext is not MainWindowViewModel vm || !vm.Projects.AnySettingUp) return;
+
+        e.Cancel = true;
+        var closeAnyway = await vm.Dialog.ConfirmAsync("Setup in progress",
+            "Project setup is still running. If you close now you'll have to finish setting the project up by hand in Unity. Close anyway?",
+            "Close anyway", "Wait");
+        if (closeAnyway)
+        {
+            _forceClose = true;
+            Close();
         }
     }
 

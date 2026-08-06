@@ -18,19 +18,24 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IDialogService _dialog;
     private readonly IUpdateCoordinator _updateCoordinator;
     private readonly IAppVersion _appVersion;
+    private readonly IKsp2DetectorService _ksp2Detector;
+    private readonly IFilePickerService _picker;
     private readonly ILogService _log;
-    
+
     private readonly bool _suppressSave;
 
     public SettingsViewModel(
         IConfigService config, IProcessRunner processRunner, IDialogService dialog,
-        IUpdateCoordinator updateCoordinator, IAppVersion appVersion, ILogService log)
+        IUpdateCoordinator updateCoordinator, IAppVersion appVersion, IKsp2DetectorService ksp2Detector,
+        IFilePickerService picker, ILogService log)
     {
         _config = config;
         _processRunner = processRunner;
         _dialog = dialog;
         _updateCoordinator = updateCoordinator;
         _appVersion = appVersion;
+        _ksp2Detector = ksp2Detector;
+        _picker = picker;
         _log = log;
 
         _suppressSave = true;
@@ -38,6 +43,8 @@ public partial class SettingsViewModel : ViewModelBase
         {
             ShowSnapshotVersions = _config.Config.ShowSnapshotVersions;
             EnableSdkEmbedding = _config.Config.EnableSdkEmbedding;
+            AutoRunProjectSetup = _config.Config.AutoRunProjectSetup;
+            Ksp2ExePath = _config.Config.Ksp2ExePath;
         }
         finally { _suppressSave = false; }
     }
@@ -47,6 +54,12 @@ public partial class SettingsViewModel : ViewModelBase
 
     [ObservableProperty]
     private bool _enableSdkEmbedding;
+
+    [ObservableProperty]
+    private bool _autoRunProjectSetup;
+
+    [ObservableProperty]
+    private string _ksp2ExePath = "";
 
     [ObservableProperty]
     private bool _isCheckingForUpdates;
@@ -68,6 +81,43 @@ public partial class SettingsViewModel : ViewModelBase
         _config.Config.EnableSdkEmbedding = value;
         _config.Save();
         _log.Info($"SDK embedding option set to {value}.");
+    }
+
+    partial void OnAutoRunProjectSetupChanged(bool value)
+    {
+        if (_suppressSave) return;
+        _config.Config.AutoRunProjectSetup = value;
+        _config.Save();
+        _log.Info($"Auto-run project setup set to {value}.");
+    }
+
+    partial void OnKsp2ExePathChanged(string value)
+    {
+        if (_suppressSave) return;
+        _config.Config.Ksp2ExePath = value;
+        _config.Save();
+        _log.Info($"KSP2 path set to '{value}'.");
+    }
+
+    [RelayCommand]
+    private async Task DetectKsp2()
+    {
+        var found = _ksp2Detector.DetectKsp2InstallLocation();
+        if (found is null)
+        {
+            await _dialog.AlertAsync("KSP2 not found",
+                "Could not find KSP2 automatically. Use Browse to point at KSP2_x64.exe.");
+            return;
+        }
+
+        Ksp2ExePath = found;
+    }
+
+    [RelayCommand]
+    private async Task BrowseKsp2()
+    {
+        var picked = await _picker.PickFileAsync("Locate KSP2_x64.exe", "KSP2 executable", "exe");
+        if (!string.IsNullOrEmpty(picked)) Ksp2ExePath = picked;
     }
 
     [RelayCommand]

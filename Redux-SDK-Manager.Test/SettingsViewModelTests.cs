@@ -23,9 +23,13 @@ public class SettingsViewModelTests
         IProcessRunner? runner = null,
         IDialogService? dialog = null,
         IUpdateCoordinator? updateCoordinator = null,
+        IKsp2DetectorService? ksp2Detector = null,
+        IFilePickerService? picker = null,
         ILogService? log = null)
         => new(config, runner ?? Mock.Of<IProcessRunner>(), dialog ?? Mock.Of<IDialogService>(),
-            updateCoordinator ?? Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(), log ?? Mock.Of<ILogService>());
+            updateCoordinator ?? Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(),
+            ksp2Detector ?? Mock.Of<IKsp2DetectorService>(), picker ?? Mock.Of<IFilePickerService>(),
+            log ?? Mock.Of<ILogService>());
 
     [Test]
     public void Ctor_SeedsFromConfig_WithoutSaving()
@@ -75,6 +79,49 @@ public class SettingsViewModelTests
 
         coordinator.Verify(c => c.CheckAsync(true), Times.Once);
         Assert.That(vm.IsCheckingForUpdates, Is.False);
+    }
+
+    [Test]
+    public void ToggleAutoRunSetup_PersistsAndSaves()
+    {
+        var (config, configMock) = Config();
+        var vm = NewVm(configMock.Object);
+
+        vm.AutoRunProjectSetup = false;
+
+        Assert.That(config.AutoRunProjectSetup, Is.False);
+        configMock.Verify(c => c.Save(), Times.Once);
+    }
+
+    [Test]
+    public async Task DetectKsp2_Found_SetsPathAndSaves()
+    {
+        var (config, configMock) = Config();
+        var detector = new Mock<IKsp2DetectorService>();
+        detector.Setup(d => d.DetectKsp2InstallLocation()).Returns(@"C:\ksp2\KSP2_x64.exe");
+
+        var vm = NewVm(configMock.Object, ksp2Detector: detector.Object);
+        await vm.DetectKsp2Command.ExecuteAsync(null);
+
+        Assert.That(vm.Ksp2ExePath, Is.EqualTo(@"C:\ksp2\KSP2_x64.exe"));
+        Assert.That(config.Ksp2ExePath, Is.EqualTo(@"C:\ksp2\KSP2_x64.exe"));
+        configMock.Verify(c => c.Save(), Times.Once);
+    }
+
+    [Test]
+    public async Task DetectKsp2_NotFound_Alerts_AndLeavesPath()
+    {
+        var (config, configMock) = Config();
+        var detector = new Mock<IKsp2DetectorService>();
+        detector.Setup(d => d.DetectKsp2InstallLocation()).Returns((string?)null);
+        var dialog = new Mock<IDialogService>();
+        dialog.Setup(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var vm = NewVm(configMock.Object, dialog: dialog.Object, ksp2Detector: detector.Object);
+        await vm.DetectKsp2Command.ExecuteAsync(null);
+
+        dialog.Verify(d => d.AlertAsync("KSP2 not found", It.IsAny<string>()), Times.Once);
+        Assert.That(config.Ksp2ExePath, Is.Empty);
     }
 
     [Test]

@@ -3,11 +3,13 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
+using Redux_SDK_Manager.Wrappers;
 
 namespace Redux_SDK_Manager.ViewModels;
 
@@ -27,6 +29,9 @@ public partial class ProjectsViewModel : ViewModelBase
     private readonly IGitService _gitService;
     private readonly IFilePickerService _picker;
     private readonly IDialogService _dialog;
+    private readonly IProcessRunner _processRunner;
+    private readonly IProjectSetupService _setup;
+    private readonly IKsp2DetectorService _ksp2Detector;
     private readonly IFileSystem _fileSystem;
     private readonly ILogService _log;
 
@@ -40,6 +45,9 @@ public partial class ProjectsViewModel : ViewModelBase
         IGitService gitService,
         IFilePickerService picker,
         IDialogService dialog,
+        IProcessRunner processRunner,
+        IProjectSetupService setup,
+        IKsp2DetectorService ksp2Detector,
         IFileSystem fileSystem,
         ILogService log)
     {
@@ -52,6 +60,9 @@ public partial class ProjectsViewModel : ViewModelBase
         _gitService = gitService;
         _picker = picker;
         _dialog = dialog;
+        _processRunner = processRunner;
+        _setup = setup;
+        _ksp2Detector = ksp2Detector;
         _fileSystem = fileSystem;
         _log = log;
 
@@ -59,6 +70,9 @@ public partial class ProjectsViewModel : ViewModelBase
     }
 
     public ObservableCollection<ProjectItemViewModel> Projects { get; } = [];
+
+    /// <summary>True while any tracked project is mid setup, used by the window's close guard.</summary>
+    public bool AnySettingUp => Projects.Any(p => p.IsSettingUp);
 
     [ObservableProperty]
     private bool _isBusy;
@@ -147,11 +161,37 @@ public partial class ProjectsViewModel : ViewModelBase
         var choice = await PickVersionAsync();
         if (choice is null) return;
 
-        var target = await _picker.PickFolderAsync("Choose an empty folder for the new project");
+        var target = await _picker.PickFolderAsync("Choose an empty folder for the new project",
+            _config.Config.LastProjectDirectory);
         if (string.IsNullOrEmpty(target)) return;
 
-        await RunProjectOperationAsync("Create failed",
+        RememberProjectParent(target);
+
+        await RunProjectOperationAsync("Create failed", target,
             () => _projectService.CreateProject(TemplateVersion.Parse(choice.Version), target, choice.EmbedSdk));
+    }
+
+    // Remembers where the user put a project so the next new-project picker opens in the same place.
+    private void RememberProjectParent(string projectPath)
+    {
+        var parent = _fileSystem.Path.GetDirectoryName(projectPath.TrimEnd('/', '\\'));
+        if (string.IsNullOrEmpty(parent)) return;
+        _config.Config.LastProjectDirectory = parent;
+        _config.Save();
+    }
+
+    [RelayCommand]
+    private void OpenFolder(ProjectItemViewModel? item)
+    {
+        if (item is null) return;
+        try
+        {
+            _processRunner.OpenUrl(item.Path);
+        }
+        catch (Exception e)
+        {
+            _log.Error($"Failed to open folder '{item.Path}'.", e);
+        }
     }
 
     [RelayCommand]
@@ -168,7 +208,7 @@ public partial class ProjectsViewModel : ViewModelBase
         {
             // Import has no version picker, so ask about embedding separately (only in SDK dev mode).
             var embed = await ConfirmEmbedSdkAsync();
-            await RunProjectOperationAsync("Import failed", () => _projectService.ImportProject(target, embed));
+            await RunProjectOperationAsync("Import failed", target, () => _projectService.ImportProject(target, embed));
             return;
         }
 
@@ -177,7 +217,7 @@ public partial class ProjectsViewModel : ViewModelBase
         var choice = await PickVersionAsync();
         if (choice is null) return;
 
-        await RunProjectOperationAsync("Add failed",
+        await RunProjectOperationAsync("Add failed", target,
             () => _projectService.IngestProject(target, TemplateVersion.Parse(choice.Version), choice.EmbedSdk));
     }
 
@@ -189,7 +229,7 @@ public partial class ProjectsViewModel : ViewModelBase
         var choice = await PickVersionAsync();
         if (choice is null) return;
 
-        await RunProjectOperationAsync("Upgrade failed",
+        await RunProjectOperationAsync("Upgrade failed", item.Path,
             () => _projectService.UpgradeProject(item.Path, TemplateVersion.Parse(choice.Version), choice.EmbedSdk));
     }
 
@@ -239,13 +279,17 @@ public partial class ProjectsViewModel : ViewModelBase
     }
 
     // Runs a project operation off the UI thread, refreshes the list on success, and reports failures.
-    private async Task RunProjectOperationAsync(string failTitle, Action operation)
+    // On success, kicks off automated setup for the resulting project (after the busy scrim clears, so
+    // the per-row status is what the user watches).
+    private async Task RunProjectOperationAsync(string failTitle, string projectPath, Action operation)
     {
         IsBusy = true;
+        var succeeded = false;
         try
         {
             await Task.Run(operation);
             Load();
+            succeeded = true;
         }
         catch (Exception e)
         {
@@ -256,6 +300,84 @@ public partial class ProjectsViewModel : ViewModelBase
         {
             IsBusy = false;
         }
+
+        if (succeeded) await MaybeRunSetupAsync(projectPath);
+    }
+
+    // Runs the ThunderKit import + pipeline for a freshly created/added/upgraded project, unless disabled
+    // or already imported. Greys the project's row and streams the current step to it while it runs.
+    private async Task MaybeRunSetupAsync(string projectPath)
+    {
+        if (!_config.Config.AutoRunProjectSetup) return;
+        if (_setup.IsAlreadySetUp(projectPath)) return;
+
+        var ksp2 = await EnsureKsp2PathAsync();
+        if (ksp2 is null) return;
+
+        var item = Projects.FirstOrDefault(p => string.Equals(p.Path, projectPath, StringComparison.OrdinalIgnoreCase));
+        if (item is null) return;
+
+        item.IsSettingUp = true;
+        item.SetupStatus = "Starting setup...";
+        var progress = new Progress<ProjectSetupProgress>(p => item.SetupStatus = ProjectSetupService.DescribeProgress(p));
+
+        ProjectSetupResult result;
+        try
+        {
+            result = await _setup.RunSetupAsync(projectPath, ksp2, progress, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            _log.Error("Automated setup failed.", e);
+            result = ProjectSetupResult.Failed;
+        }
+        finally
+        {
+            item.IsSettingUp = false;
+            item.SetupStatus = "";
+        }
+
+        switch (result)
+        {
+            case ProjectSetupResult.EditorMissing:
+                await _dialog.AlertAsync("Automated setup", ProjectSetupService.EditorMissingMessage);
+                break;
+            case ProjectSetupResult.Failed:
+                await _dialog.AlertAsync("Automated setup failed",
+                    "The automated project setup did not finish. See the log at:\n"
+                    + $"{_setup.SetupLogPath(projectPath)}\n\n"
+                    + "Or open the project in Unity to finish setup by hand.");
+                break;
+        }
+    }
+
+    // Resolves the KSP2 executable, prompting (detect then browse) when the config path is unset or gone.
+    // Returns null when the user declines to provide one, which skips setup.
+    private async Task<string?> EnsureKsp2PathAsync()
+    {
+        var path = _config.Config.Ksp2ExePath;
+        if (!string.IsNullOrEmpty(path) && _fileSystem.File.Exists(path)) return path;
+
+        var detected = _ksp2Detector.DetectKsp2InstallLocation();
+        if (detected is not null
+            && await _dialog.ConfirmAsync("KSP2 found",
+                $"Use this KSP2 install to set up the project?\n{detected}", "Use", "Choose another"))
+        {
+            SaveKsp2Path(detected);
+            return detected;
+        }
+
+        var picked = await _picker.PickFileAsync("Locate KSP2_x64.exe", "KSP2 executable", "exe");
+        if (string.IsNullOrEmpty(picked)) return null;
+
+        SaveKsp2Path(picked);
+        return picked;
+    }
+
+    private void SaveKsp2Path(string path)
+    {
+        _config.Config.Ksp2ExePath = path;
+        _config.Save();
     }
 
     private async Task<bool> RequireGitAsync()

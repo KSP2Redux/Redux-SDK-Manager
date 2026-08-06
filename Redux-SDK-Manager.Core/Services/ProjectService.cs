@@ -63,12 +63,6 @@ public class ProjectService(
     ILogService logService,
     IPromptService promptService) : IProjectService
 {
-    private const string CreateAlert =
-        "New project created. On first launch there will be compiler errors, ignore them and import via thunderkit as normal.";
-
-    private const string ApplyAlert =
-        "Project initialization complete, on next launch there will be compiler errors, ignore them and import via thunderkit as normal.";
-
     public void CreateProject(TemplateVersion version, string targetPath, bool embedSdk = false)
     {
         if (fileSystem.Directory.Exists(targetPath) &&
@@ -99,7 +93,6 @@ public class ProjectService(
         TrackProject(targetPath);
         if (embedSdk) sdkEmbedService.Commit(targetPath, sdkStaging);
         logService.Info($"Created project '{name}' at '{targetPath}'.");
-        promptService.Alert(CreateAlert);
     }
 
     public void UpgradeProject(string projectPath, TemplateVersion toVersion, bool embedSdk = false)
@@ -225,8 +218,6 @@ public class ProjectService(
         ClearRegeneratedCaches(projectPath);
 
         if (embedSdk) sdkEmbedService.Commit(projectPath, sdkStaging);
-
-        promptService.Alert(ApplyAlert);
     }
 
     // Records the manager's local metadata (name + version) in project.info, then drops the

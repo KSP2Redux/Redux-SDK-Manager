@@ -33,4 +33,23 @@ public class SdkManagerConfig
     /// upgrading a project. Off by default; only SDK developers need it.
     /// </summary>
     public bool EnableSdkEmbedding { get; set; } = false;
+
+    /// <summary>
+    /// Full path to KSP2_x64.exe, used to import the game into a project during automated setup. Empty
+    /// until detected or set. Both frontends share it.
+    /// </summary>
+    public string Ksp2ExePath { get; set; } = "";
+
+    /// <summary>
+    /// Whether the manager runs the ThunderKit import + "Import KSP2 to Editor" pipeline automatically
+    /// after creating, adding, importing, or upgrading a project. On by default; prompts for the KSP2
+    /// path if it isn't set yet.
+    /// </summary>
+    public bool AutoRunProjectSetup { get; set; } = true;
+
+    /// <summary>
+    /// The folder that held the most recently created project, used to open the new-project picker in
+    /// the same place next time. Empty until the first project is created.
+    /// </summary>
+    public string LastProjectDirectory { get; set; } = "";
 }

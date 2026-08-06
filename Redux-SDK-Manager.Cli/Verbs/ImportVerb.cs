@@ -16,6 +16,7 @@ public static class ImportVerb
                 new { ok = true, path = options.Path, version = version.Raw, channel = version.Channel.ToString() },
                 () => context.Output.Result($"Imported {options.Path} (version {version.Raw})."));
 
+            SetupRunner.RunAfter(context, options.Path!, options);
             return ExitCode.SUCCESS;
         }
         catch (Exception e)
