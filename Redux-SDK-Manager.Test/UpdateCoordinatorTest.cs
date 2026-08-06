@@ -62,6 +62,37 @@ public class UpdateCoordinatorTest
     }
 
     [Test]
+    public async Task Check_Available_Confirmed_LocksUiDuringDownload()
+    {
+        var (svc, _, dialog) = Build(Available());
+
+        await svc.CheckAsync(notifyWhenCurrent: false);
+
+        dialog.Verify(d => d.ShowBlocking(It.IsAny<string>()), Times.Once);
+    }
+
+    [Test]
+    public async Task Check_Available_ApplyFailed_ClearsBlocking()
+    {
+        var (svc, _, dialog) = Build(Available(), applyResult: UpdateApplyResult.ChecksumMismatch);
+
+        await svc.CheckAsync(notifyWhenCurrent: false);
+
+        dialog.Verify(d => d.ShowBlocking(It.IsAny<string>()), Times.Once);
+        dialog.Verify(d => d.ClearBlocking(), Times.Once);
+    }
+
+    [Test]
+    public async Task Check_Declined_DoesNotBlock()
+    {
+        var (svc, _, dialog) = Build(Available(), confirm: false);
+
+        await svc.CheckAsync(notifyWhenCurrent: false);
+
+        dialog.Verify(d => d.ShowBlocking(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
     public async Task Check_Available_ApplyRestartTriggered_ShowsNoFailureDialog()
     {
         var (svc, _, dialog) = Build(Available());

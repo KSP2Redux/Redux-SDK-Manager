@@ -31,12 +31,33 @@ public interface IDialogService
     /// "download" page for a missing prerequisite) and a cancel button. No-op if the user cancels.
     /// </summary>
     Task OfferLinkAsync(string title, string message, string actionText, string url);
+
+    /// <summary>Whether the full-window blocking overlay is shown (locks the UI, e.g. while updating).</summary>
+    bool IsBlocking { get; }
+
+    /// <summary>The message shown on the blocking overlay.</summary>
+    string BlockingMessage { get; }
+
+    /// <summary>
+    /// Shows a full-window scrim that locks the whole UI until <see cref="ClearBlocking"/> (or the
+    /// process exits). Used while an update downloads and restarts.
+    /// </summary>
+    void ShowBlocking(string message);
+
+    /// <summary>Dismisses the blocking overlay shown by <see cref="ShowBlocking"/>.</summary>
+    void ClearBlocking();
 }
 
 public partial class DialogService(IProcessRunner processRunner) : ObservableObject, IDialogService
 {
     [ObservableProperty]
     private ViewModelBase? _current;
+
+    [ObservableProperty]
+    private bool _isBlocking;
+
+    [ObservableProperty]
+    private string _blockingMessage = "";
 
     public async Task AlertAsync(string title, string message)
     {
@@ -79,6 +100,14 @@ public partial class DialogService(IProcessRunner processRunner) : ObservableObj
             await AlertAsync(title, $"Could not open your browser. Visit this page to download:\n{url}");
         }
     }
+
+    public void ShowBlocking(string message)
+    {
+        BlockingMessage = message;
+        IsBlocking = true;
+    }
+
+    public void ClearBlocking() => IsBlocking = false;
 
     private async Task<TResult> ShowAsync<TResult>(ViewModelBase dialog, Task<TResult> completion)
     {

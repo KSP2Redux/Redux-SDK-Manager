@@ -42,7 +42,14 @@ public sealed class UpdateCoordinator(
             BuildAvailableMessage(update), "Update now", "Later");
         if (!confirmed) return;
 
+        // Lock the UI while the download runs: on success the process restarts mid-flow, so the
+        // overlay prevents the user from interacting with a window that is about to close.
+        dialog.ShowBlocking("Updating - the app will restart automatically...");
         var result = await applyService.DownloadAndApplyAsync(update);
+
+        // Reached only when the update did NOT restart the app (an error). A successful apply exits
+        // the process, leaving the overlay up until it closes.
+        dialog.ClearBlocking();
         switch (result)
         {
             case UpdateApplyResult.RestartTriggered:

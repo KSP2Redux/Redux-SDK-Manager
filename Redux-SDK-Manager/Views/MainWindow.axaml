@@ -188,6 +188,17 @@
                             Background="{StaticResource ScrimMediumBrush}">
                         <ContentControl Content="{Binding Dialog.Current}" />
                     </Border>
+
+                    <!-- Full-window scrim that locks the whole UI while an update downloads/restarts. -->
+                    <Border Grid.RowSpan="3"
+                            IsVisible="{Binding Dialog.IsBlocking}"
+                            Background="{StaticResource ScrimMediumBrush}">
+                        <TextBlock Text="{Binding Dialog.BlockingMessage}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="28"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                   TextAlignment="Center" TextWrapping="Wrap" MaxWidth="600" />
+                    </Border>
                 </Grid>
             </Border>
         </Border>
