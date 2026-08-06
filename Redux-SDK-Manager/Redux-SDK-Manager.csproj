@@ -4,6 +4,9 @@
         <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <ApplicationManifest>app.manifest</ApplicationManifest>
+        <!-- Embeds the icon into the exe itself (Explorer, taskbar, the file). The running window's
+             icon is set separately via Window.Icon in MainWindow.axaml. -->
+        <ApplicationIcon>Assets\favicon.ico</ApplicationIcon>
         <!-- Windows-only, self-contained single file. IncludeNativeLibrariesForSelfExtract embeds
              Skia/HarfBuzz/ANGLE into the exe so the released binary is self-sufficient. -->
         <PublishSingleFile>true</PublishSingleFile>
