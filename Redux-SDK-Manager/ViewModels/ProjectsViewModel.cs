@@ -202,8 +202,60 @@ public partial class ProjectsViewModel : ViewModelBase
         var target = await _picker.PickFolderAsync("Choose an existing project to add");
         if (string.IsNullOrEmpty(target)) return;
 
-        // An already-managed project (has project.info or a template.version stamp) is imported as-is.
-        // An unmanaged one is adopted (ingested) at a chosen version, which needs git.
+        await AdoptFolderAsync(target);
+    }
+
+    [RelayCommand]
+    private async Task AddFromGit()
+    {
+        if (IsBusy || !await RequireGitAsync()) return;
+
+        var url = await _dialog.AskAsync("Add from Git", "Repository URL to clone:", "");
+        if (string.IsNullOrWhiteSpace(url)) return;
+
+        var name = GitUrl.RepoName(url);
+        if (string.IsNullOrEmpty(name))
+        {
+            await _dialog.AlertAsync("Add from Git", "Could not work out a folder name from that URL.");
+            return;
+        }
+
+        var parent = await _picker.PickFolderAsync("Choose where to clone the project", _config.Config.LastProjectDirectory);
+        if (string.IsNullOrEmpty(parent)) return;
+
+        var dest = _fileSystem.Path.Combine(parent, name);
+        if (_fileSystem.Directory.Exists(dest) && _fileSystem.Directory.EnumerateFileSystemEntries(dest).Any())
+        {
+            await _dialog.AlertAsync("Add from Git", $"'{dest}' already exists and is not empty.");
+            return;
+        }
+
+        RememberProjectParent(dest);
+
+        var cloned = false;
+        IsBusy = true;
+        try
+        {
+            await Task.Run(() => _gitService.CloneRepository(url, dest));
+            cloned = true;
+        }
+        catch (Exception e)
+        {
+            _log.Error($"Clone of '{url}' failed.", e);
+            await _dialog.AlertAsync("Clone failed", e.Message);
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+
+        if (cloned) await AdoptFolderAsync(dest);
+    }
+
+    // Adopts an existing project folder: an already-managed project (has project.info or a
+    // template.version stamp) is imported as-is; an unmanaged one is ingested at a chosen version.
+    private async Task AdoptFolderAsync(string target)
+    {
         if (_versionService.DetectProjectVersion(target) is not null)
         {
             // Import has no version picker, so ask about embedding separately (only in SDK dev mode).

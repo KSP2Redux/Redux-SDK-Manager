@@ -28,6 +28,12 @@ public interface IGitService
     /// </summary>
     void CloneMirror(string repositoryUrl, string destinationPath);
 
+    /// <summary>
+    /// Full-clones a repository's default branch into <paramref name="destinationPath"/> as a working
+    /// checkout, for adding a project straight from its git URL.
+    /// </summary>
+    void CloneRepository(string repositoryUrl, string destinationPath);
+
     /// <summary>Fetches all tags into an existing local clone, pruning deleted ones.</summary>
     void Fetch(string repositoryPath);
 
@@ -106,6 +112,16 @@ public class GitService(IProcessRunner processRunner) : IGitService
     }
 
     public void CloneMirror(string repositoryUrl, string destinationPath)
+    {
+        var result = processRunner.Run(GitExecutable, ["clone", repositoryUrl, destinationPath]);
+        if (result.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git clone of '{repositoryUrl}' failed (exit {result.ExitCode}): {result.StandardError.Trim()}");
+        }
+    }
+
+    public void CloneRepository(string repositoryUrl, string destinationPath)
     {
         var result = processRunner.Run(GitExecutable, ["clone", repositoryUrl, destinationPath]);
         if (result.ExitCode != 0)

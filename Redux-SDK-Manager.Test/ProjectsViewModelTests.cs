@@ -511,4 +511,82 @@ public class ProjectsViewModelTests
         dialog.Verify(d => d.AlertAsync("Automated setup failed",
             It.Is<string>(m => m.Contains(@"C:\new\Mod\Library\redux-setup.log"))), Times.Once);
     }
+
+    private const string RepoUrl = "https://github.com/Falki-git/SASExtended.git";
+    private const string CloneParent = @"C:\clones";
+    private const string CloneDest = @"C:\clones\SASExtended";
+
+    private static Mock<IDialogService> DialogForGit(string version)
+    {
+        var dialog = DialogSelecting(version);
+        dialog.Setup(d => d.AskAsync("Add from Git", It.IsAny<string>(), It.IsAny<string>())).ReturnsAsync(RepoUrl);
+        return dialog;
+    }
+
+    private static Mock<IFilePickerService> PickerReturning(string parent)
+    {
+        var picker = new Mock<IFilePickerService>();
+        picker.Setup(p => p.PickFolderAsync(It.IsAny<string>(), It.IsAny<string?>())).ReturnsAsync(parent);
+        return picker;
+    }
+
+    [Test]
+    public async Task AddFromGit_UnmanagedRepo_ClonesThenIngestsAtPickedVersion()
+    {
+        var (config, configMock) = Config();
+        config.ShowSnapshotVersions = true;
+        var git = GitAvailable();
+        var version = new Mock<ITemplateVersionService>();
+        version.Setup(v => v.DetectProjectVersion(CloneDest)).Returns((TemplateVersion?)null);
+        var project = new Mock<IProjectService>();
+
+        var vm = NewVm(configMock.Object, version: version.Object, git: git.Object,
+            catalog: CatalogWith("26w32b").Object, picker: PickerReturning(CloneParent).Object,
+            dialog: DialogForGit("26w32b").Object, project: project.Object);
+        await vm.AddFromGitCommand.ExecuteAsync(null);
+
+        git.Verify(g => g.CloneRepository(RepoUrl, CloneDest), Times.Once);
+        project.Verify(p => p.IngestProject(CloneDest, It.Is<TemplateVersion>(v => v.Raw == "26w32b"), It.IsAny<bool>()), Times.Once);
+        Assert.That(config.LastProjectDirectory, Is.EqualTo(CloneParent));
+    }
+
+    [Test]
+    public async Task AddFromGit_ManagedRepo_ClonesThenImports_WithoutPickingVersion()
+    {
+        var (_, configMock) = Config();
+        var git = GitAvailable();
+        var version = new Mock<ITemplateVersionService>();
+        version.Setup(v => v.DetectProjectVersion(CloneDest)).Returns(TemplateVersion.Parse("26w32b"));
+        var project = new Mock<IProjectService>();
+        var dialog = DialogForGit("26w32b");
+
+        var vm = NewVm(configMock.Object, version: version.Object, git: git.Object,
+            picker: PickerReturning(CloneParent).Object, dialog: dialog.Object, project: project.Object);
+        await vm.AddFromGitCommand.ExecuteAsync(null);
+
+        git.Verify(g => g.CloneRepository(RepoUrl, CloneDest), Times.Once);
+        project.Verify(p => p.ImportProject(CloneDest, It.IsAny<bool>()), Times.Once);
+        project.Verify(p => p.IngestProject(It.IsAny<string>(), It.IsAny<TemplateVersion>(), It.IsAny<bool>()), Times.Never);
+        dialog.Verify(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()), Times.Never);
+    }
+
+    [Test]
+    public async Task AddFromGit_CloneFails_Alerts_AndDoesNotAdopt()
+    {
+        var (_, configMock) = Config();
+        var git = GitAvailable();
+        git.Setup(g => g.CloneRepository(It.IsAny<string>(), It.IsAny<string>()))
+            .Throws(new System.InvalidOperationException("network down"));
+        var project = new Mock<IProjectService>();
+        var dialog = DialogForGit("26w32b");
+        dialog.Setup(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+
+        var vm = NewVm(configMock.Object, git: git.Object, picker: PickerReturning(CloneParent).Object,
+            dialog: dialog.Object, project: project.Object);
+        await vm.AddFromGitCommand.ExecuteAsync(null);
+
+        dialog.Verify(d => d.AlertAsync("Clone failed", It.IsAny<string>()), Times.Once);
+        project.Verify(p => p.ImportProject(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
+        project.Verify(p => p.IngestProject(It.IsAny<string>(), It.IsAny<TemplateVersion>(), It.IsAny<bool>()), Times.Never);
+    }
 }

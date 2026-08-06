@@ -97,6 +97,31 @@ public sealed class ImportOptions : ProjectPathOptions, ISetupCapableOptions
     public string? Ksp2 { get; set; }
 }
 
+[Verb("clone", HelpText = "Clone a repo URL and add it as a project (import if managed, else ingest at --version).")]
+public sealed class CloneOptions : BaseOptions, ISetupCapableOptions
+{
+    [Value(0, MetaName = "url", Required = true, HelpText = "Repository URL to clone.")]
+    public string? Url { get; set; }
+
+    [Value(1, MetaName = "path", Required = true, HelpText = "Destination directory to clone into.")]
+    public string? Path { get; set; }
+
+    [Option("version", Required = false, HelpText = "Template version to ingest at when the repo isn't already a managed project.")]
+    public string? Version { get; set; }
+
+    [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
+    public string? Name { get; set; }
+
+    [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
+    public bool EmbedSdk { get; set; }
+
+    [Option("no-setup", Required = false, HelpText = "Skip the automated ThunderKit import + pipeline after adding.")]
+    public bool NoSetup { get; set; }
+
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe for automated setup, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
+}
+
 [Verb("detect", HelpText = "Report the template version a project is stamped with.")]
 public sealed class DetectOptions : ProjectPathOptions;
 

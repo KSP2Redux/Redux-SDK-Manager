@@ -20,6 +20,7 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                     <Button Content="New" Classes="success" Command="{Binding CreateProjectCommand}" />
                     <Button Content="Add Existing" Command="{Binding AddProjectCommand}" />
+                    <Button Content="Add from Git" Command="{Binding AddFromGitCommand}" />
                     <Button Content="Refresh" Command="{Binding LoadCommand}" />
                 </StackPanel>
             </Grid>

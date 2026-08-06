@@ -23,13 +23,14 @@ public static class Program
 
         return parser.ParseArguments<
                 VersionsOptions, CreateOptions, IngestOptions, UpgradeOptions, ImportOptions,
-                DetectOptions, OpenOptions, UnityOptions, ProjectsOptions, DoctorOptions>(args)
+                CloneOptions, DetectOptions, OpenOptions, UnityOptions, ProjectsOptions, DoctorOptions>(args)
             .MapResult(
                 (VersionsOptions o) => Run(o, VersionsVerb.Run),
                 (CreateOptions o) => Run(o, ctx => CreateVerb.Run(ctx, o)),
                 (IngestOptions o) => Run(o, ctx => IngestVerb.Run(ctx, o)),
                 (UpgradeOptions o) => Run(o, ctx => UpgradeVerb.Run(ctx, o)),
                 (ImportOptions o) => Run(o, ctx => ImportVerb.Run(ctx, o)),
+                (CloneOptions o) => Run(o, ctx => CloneVerb.Run(ctx, o)),
                 (DetectOptions o) => Run(o, ctx => DetectVerb.Run(ctx, o)),
                 (OpenOptions o) => Run(o, ctx => OpenVerb.Run(ctx, o)),
                 (UnityOptions o) => Run(o, UnityVerb.Run),
