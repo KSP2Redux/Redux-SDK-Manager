@@ -26,5 +26,6 @@
     <ItemGroup>
         <ProjectReference Include="..\Redux-SDK-Manager\Redux-SDK-Manager.csproj"/>
         <ProjectReference Include="..\Redux-SDK-Manager.Core\Redux-SDK-Manager.Core.csproj"/>
+        <ProjectReference Include="..\Redux-SDK-Manager.Cli\Redux-SDK-Manager.Cli.csproj"/>
     </ItemGroup>
 </Project>

@@ -4,6 +4,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redux-SDK-Manager", "Redux-
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redux-SDK-Manager.Core", "Redux-SDK-Manager.Core\Redux-SDK-Manager.Core.csproj", "{B2C3D4E5-F6A7-48B9-0C1D-2E3F40516273}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redux-SDK-Manager.Cli", "Redux-SDK-Manager.Cli\Redux-SDK-Manager.Cli.csproj", "{C3D4E5F6-A7B8-49C0-1D2E-3F4051627384}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Redux-SDK-Manager.Test", "Redux-SDK-Manager.Test\Redux-SDK-Manager.Test.csproj", "{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F405162}"
 EndProject
 Global
@@ -20,6 +22,10 @@ Global
 		{B2C3D4E5-F6A7-48B9-0C1D-2E3F40516273}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{B2C3D4E5-F6A7-48B9-0C1D-2E3F40516273}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{B2C3D4E5-F6A7-48B9-0C1D-2E3F40516273}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C3D4E5F6-A7B8-49C0-1D2E-3F4051627384}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C3D4E5F6-A7B8-49C0-1D2E-3F4051627384}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C3D4E5F6-A7B8-49C0-1D2E-3F4051627384}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C3D4E5F6-A7B8-49C0-1D2E-3F4051627384}.Release|Any CPU.Build.0 = Release|Any CPU
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F405162}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F405162}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A1B2C3D4-E5F6-47A8-9B0C-1D2E3F405162}.Release|Any CPU.ActiveCfg = Release|Any CPU

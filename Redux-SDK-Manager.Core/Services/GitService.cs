@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Redux_SDK_Manager.Wrappers;
 
 namespace Redux_SDK_Manager.Services;
@@ -43,20 +44,13 @@ public class GitService(IProcessRunner processRunner) : IGitService
                 $"git ls-remote failed for '{repositoryUrl}' (exit {result.ExitCode}): {result.StandardError.Trim()}");
         }
 
-        var tags = new List<string>();
-        foreach (var line in result.StandardOutput.Split('\n'))
-        {
-            var marker = line.IndexOf(TagRefPrefix, StringComparison.Ordinal);
-            if (marker < 0) continue;
-
-            var name = line[(marker + TagRefPrefix.Length)..].Trim();
-            // A peeled entry ("<tag>^{}") duplicates the annotated tag it dereferences - skip it.
-            if (name.Length == 0 || name.EndsWith("^{}", StringComparison.Ordinal)) continue;
-
-            tags.Add(name);
-        }
-
-        return tags;
+        return (from line in result.StandardOutput.Split('\n')
+            let marker = line.IndexOf(TagRefPrefix, StringComparison.Ordinal)
+            where marker >= 0
+            select line[(marker + TagRefPrefix.Length)..].Trim()
+            into name
+            where name.Length != 0 && !name.EndsWith("^{}", StringComparison.Ordinal)
+            select name).ToList();
     }
 
     public void Clone(string repositoryUrl, string reference, string destinationPath)

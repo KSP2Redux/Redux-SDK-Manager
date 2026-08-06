@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Redux_SDK_Manager.Models;
 
 namespace Redux_SDK_Manager.Services;
@@ -20,13 +21,8 @@ public class TemplateCatalogService(IGitService gitService, IConfigService confi
 {
     public IReadOnlyList<TemplateVersion> ListAvailableVersions()
     {
-        var versions = new List<TemplateVersion>();
-        foreach (var tag in gitService.ListRemoteTags(configService.Config.TemplatesRepositoryUrl))
-        {
-            versions.Add(TemplateVersion.Parse(tag));
-        }
-
-        return versions;
+        return gitService.ListRemoteTags(configService.Config.TemplatesRepositoryUrl)
+            .Select(TemplateVersion.Parse).ToList();
     }
 
     public void FetchVersion(TemplateVersion version, string destinationPath)

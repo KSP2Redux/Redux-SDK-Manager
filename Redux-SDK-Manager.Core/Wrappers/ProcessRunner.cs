@@ -13,6 +13,12 @@ public interface IProcessRunner
     /// executable cannot be started (e.g. not found on PATH).
     /// </summary>
     ProcessResult Run(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null);
+
+    /// <summary>
+    /// Starts an executable and returns immediately without waiting for it to exit — for
+    /// launching long-running GUI apps (e.g. Unity Hub). Throws if it can't be started.
+    /// </summary>
+    void Start(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null);
 }
 
 public class ProcessRunner : IProcessRunner
@@ -38,7 +44,8 @@ public class ProcessRunner : IProcessRunner
             startInfo.WorkingDirectory = workingDirectory;
         }
 
-        using var process = new Process { StartInfo = startInfo };
+        using var process = new Process();
+        process.StartInfo = startInfo;
         process.Start();
 
         // Drain both streams concurrently before waiting, so a full stderr buffer can't
@@ -48,5 +55,27 @@ public class ProcessRunner : IProcessRunner
         process.WaitForExit();
 
         return new ProcessResult(process.ExitCode, stdout.GetAwaiter().GetResult(), stderr.GetAwaiter().GetResult());
+    }
+
+    public void Start(string fileName, IReadOnlyList<string> arguments, string? workingDirectory = null)
+    {
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = fileName,
+            UseShellExecute = false
+        };
+
+        foreach (var argument in arguments)
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        if (!string.IsNullOrEmpty(workingDirectory))
+        {
+            startInfo.WorkingDirectory = workingDirectory;
+        }
+
+        // Fire-and-forget: disposing the handle doesn't terminate the launched process.
+        Process.Start(startInfo)?.Dispose();
     }
 }

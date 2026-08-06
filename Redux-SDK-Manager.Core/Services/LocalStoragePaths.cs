@@ -7,6 +7,7 @@ namespace Redux_SDK_Manager.Services;
 internal static class LocalStoragePaths
 {
     public const string ReduxFolder = "ReduxSdkManager";
+    public const string LogsSubfolder = "logs";
 
     public static string GetLocalStorageDirectory(IFileSystem fileSystem, IEnvironmentProvider environmentProvider)
     {
@@ -15,4 +16,7 @@ internal static class LocalStoragePaths
             ? throw new InvalidOperationException("Local application data folder path is unavailable.")
             : fileSystem.Path.Combine(appDataPath, ReduxFolder);
     }
+
+    public static string GetLogsDirectory(IFileSystem fileSystem, IEnvironmentProvider environmentProvider)
+        => fileSystem.Path.Combine(GetLocalStorageDirectory(fileSystem, environmentProvider), LogsSubfolder);
 }

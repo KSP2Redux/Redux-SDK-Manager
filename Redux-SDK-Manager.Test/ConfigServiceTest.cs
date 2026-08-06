@@ -1,5 +1,6 @@
 using System;
 using System.IO.Abstractions;
+using Moq;
 using Redux_SDK_Manager.Services;
 using Testably.Abstractions.Testing;
 
@@ -25,7 +26,7 @@ public class ConfigServiceTest
     {
         var (fs, env) = BuildEnv();
 
-        var service = new ConfigService(fs, env);
+        var service = new ConfigService(fs, env, Mock.Of<ILogService>());
 
         Assert.That(fs.File.Exists(ConfigPath), Is.True);
         Assert.That(service.Config.StoragePath, Is.EqualTo(ConfigPath));
@@ -37,11 +38,11 @@ public class ConfigServiceTest
     public void Save_PersistsChanges_AcrossReload()
     {
         var (fs, env) = BuildEnv();
-        var service = new ConfigService(fs, env);
+        var service = new ConfigService(fs, env, Mock.Of<ILogService>());
         service.Config.ProjectPaths.Add(@"C:\mods\MyMod");
         service.Save();
 
-        var reloaded = new ConfigService(fs, env);
+        var reloaded = new ConfigService(fs, env, Mock.Of<ILogService>());
 
         Assert.That(reloaded.Config.ProjectPaths, Does.Contain(@"C:\mods\MyMod"));
     }
@@ -53,7 +54,7 @@ public class ConfigServiceTest
         fs.Directory.CreateDirectory(StorageDir);
         fs.File.WriteAllText(ConfigPath, "{ not valid json ]");
 
-        var service = new ConfigService(fs, env);
+        var service = new ConfigService(fs, env, Mock.Of<ILogService>());
 
         Assert.That(service.Config.TemplatesRepositoryUrl, Is.EqualTo(DefaultTemplatesUrl));
     }
