@@ -16,7 +16,7 @@ public sealed partial class VersionItemViewModel(TemplateVersion version) : View
     public string Raw => Version.Raw;
 
     [ObservableProperty]
-    private bool _isSelected;
+    public partial bool IsSelected { get; set; }
 }
 
 /// <summary>A collapsible channel section plus its version rows, newest first.</summary>

@@ -19,10 +19,8 @@ public partial class SettingsViewModel : ViewModelBase
     private readonly IUpdateCoordinator _updateCoordinator;
     private readonly IAppVersion _appVersion;
     private readonly ILogService _log;
-
-    // Seeding the checkbox from config raises OnChanged, which would immediately write the config
-    // back. Guard the first assignment so loading is not treated as a user edit.
-    private bool _suppressSave;
+    
+    private readonly bool _suppressSave;
 
     public SettingsViewModel(
         IConfigService config, IProcessRunner processRunner, IDialogService dialog,

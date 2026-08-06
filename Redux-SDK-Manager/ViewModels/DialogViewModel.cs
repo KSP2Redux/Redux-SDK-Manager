@@ -18,32 +18,28 @@ public readonly record struct DialogResult(bool Confirmed, string Text);
 /// Backs one modal dialog. The buttons complete <see cref="Completion"/>, which the dialog service
 /// awaits, so a caller can show a dialog and get the result back as a task.
 /// </summary>
-public partial class DialogViewModel : ViewModelBase
+public partial class DialogViewModel(
+    DialogKind kind,
+    string title,
+    string message,
+    string input = "",
+    string confirmText = "OK",
+    string cancelText = "Cancel")
+    : ViewModelBase
 {
     private readonly TaskCompletionSource<DialogResult> _completion = new();
 
-    public DialogViewModel(DialogKind kind, string title, string message,
-        string input = "", string confirmText = "OK", string cancelText = "Cancel")
-    {
-        Kind = kind;
-        Title = title;
-        Message = message;
-        _input = input;
-        ConfirmText = confirmText;
-        CancelText = cancelText;
-    }
-
-    public DialogKind Kind { get; }
-    public string Title { get; }
-    public string Message { get; }
-    public string ConfirmText { get; }
-    public string CancelText { get; }
+    public DialogKind Kind { get; } = kind;
+    public string Title { get; } = title;
+    public string Message { get; } = message;
+    public string ConfirmText { get; } = confirmText;
+    public string CancelText { get; } = cancelText;
 
     public bool ShowCancel => Kind is DialogKind.Confirm or DialogKind.Ask;
     public bool ShowInput => Kind is DialogKind.Ask;
 
     [ObservableProperty]
-    private string _input;
+    private string _input = input;
 
     /// <summary>Completes when the user answers the dialog.</summary>
     public Task<DialogResult> Completion => _completion.Task;

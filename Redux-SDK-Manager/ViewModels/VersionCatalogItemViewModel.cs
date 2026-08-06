@@ -6,22 +6,13 @@ namespace Redux_SDK_Manager.ViewModels;
 /// One row in the versions catalog: a template version, the Unity editor it targets, and whether
 /// that editor is installed locally.
 /// </summary>
-public sealed class VersionCatalogItemViewModel : ViewModelBase
+public sealed class VersionCatalogItemViewModel(TemplateVersionInfo info, bool isInstalled) : ViewModelBase
 {
-    public VersionCatalogItemViewModel(TemplateVersionInfo info, bool isInstalled)
-    {
-        Raw = info.Version.Raw;
-        Channel = info.Version.Channel.ToString();
-        UnityVersion = info.UnityVersion;
-        Changeset = info.Changeset;
-        IsInstalled = isInstalled;
-    }
-
-    public string Raw { get; }
-    public string Channel { get; }
-    public string? UnityVersion { get; }
-    public string? Changeset { get; }
-    public bool IsInstalled { get; }
+    public string Raw { get; } = info.Version.Raw;
+    public string Channel { get; } = info.Version.Channel.ToString();
+    public string? UnityVersion { get; } = info.UnityVersion;
+    public string? Changeset { get; } = info.Changeset;
+    public bool IsInstalled { get; } = isInstalled;
 
     public string UnityVersionLabel =>
         string.IsNullOrEmpty(UnityVersion) ? "Unity version unknown" : $"Unity {UnityVersion}";
