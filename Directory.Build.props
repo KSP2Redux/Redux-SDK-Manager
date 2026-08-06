@@ -1,7 +1,19 @@
 <Project>
   <!-- One version for the whole product. Anchored here so Core, the GUI, and the CLI are always
-       stamped identically; the update check reads the Core assembly's version as canonical. -->
+       stamped identically - the update check reads the Core assembly's version as canonical. -->
   <PropertyGroup>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
+    <!-- Banned-API violations fail the build, not just warn. -->
+    <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
   </PropertyGroup>
+
+  <!-- Ban direct filesystem/OS APIs across every project (see BannedSymbols.txt) so everything goes
+       through the injected IFileSystem and stays testable + host-OS independent. -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.BannedApiAnalyzers" Version="5.6.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <AdditionalFiles Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+  </ItemGroup>
 </Project>

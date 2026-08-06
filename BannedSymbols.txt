@@ -1,0 +1,20 @@
+// Banned APIs, enforced by Microsoft.CodeAnalysis.BannedApiAnalyzers (diagnostic RS0030).
+// Doc: https://github.com/dotnet/roslyn-analyzers/blob/main/src/Microsoft.CodeAnalysis.BannedApiAnalyzers/BannedApiAnalyzers.Help.md
+//
+// The point: force everything that touches the filesystem through System.IO.Abstractions.IFileSystem
+// so it is testable and behaves the same regardless of the host OS (Windows paths on a Linux CI
+// runner, etc.). Bootstrap code that must run before DI exists suppresses RS0030 locally.
+
+// Filesystem - use the injected System.IO.Abstractions.IFileSystem instead.
+T:System.IO.Directory; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.DirectoryInfo; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.DriveInfo; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.File; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.FileInfo; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.FileStream; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.FileSystemWatcher; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.FileVersionInfo; (Redux) Use System.IO.Abstractions.IFileSystem instead.
+T:System.IO.Path; (Redux) Use System.IO.Abstractions.IFileSystem instead (IFileSystem.Path).
+
+// OS checks - go through an abstraction so they can be simulated in tests.
+T:System.OperatingSystem; (Redux) Use IEnvironmentProvider / a testable abstraction instead.

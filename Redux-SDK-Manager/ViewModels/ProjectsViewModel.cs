@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
+using System.IO.Abstractions;
 using System.Linq;
 using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
@@ -27,6 +27,7 @@ public partial class ProjectsViewModel : ViewModelBase
     private readonly IGitService _gitService;
     private readonly IFilePickerService _picker;
     private readonly IDialogService _dialog;
+    private readonly IFileSystem _fileSystem;
     private readonly ILogService _log;
 
     public ProjectsViewModel(
@@ -39,6 +40,7 @@ public partial class ProjectsViewModel : ViewModelBase
         IGitService gitService,
         IFilePickerService picker,
         IDialogService dialog,
+        IFileSystem fileSystem,
         ILogService log)
     {
         _config = config;
@@ -50,6 +52,7 @@ public partial class ProjectsViewModel : ViewModelBase
         _gitService = gitService;
         _picker = picker;
         _dialog = dialog;
+        _fileSystem = fileSystem;
         _log = log;
 
         Load();
@@ -68,7 +71,8 @@ public partial class ProjectsViewModel : ViewModelBase
         Projects.Clear();
         foreach (var path in _config.Config.ProjectPaths.ToList())
         {
-            var name = NonEmpty(_projectInfo.Read(path)?.Name) ?? Path.GetFileName(path.TrimEnd('/', '\\'));
+            var name = NonEmpty(_projectInfo.Read(path)?.Name)
+                ?? _fileSystem.Path.GetFileName(path.TrimEnd('/', '\\'));
             var version = _versionService.DetectProjectVersion(path);
             Projects.Add(new ProjectItemViewModel(path, name, version?.Raw ?? "", version?.Channel.ToString() ?? ""));
         }

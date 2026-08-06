@@ -5,6 +5,7 @@ using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
 using Redux_SDK_Manager.ViewModels;
 using Redux_SDK_Manager.Wrappers;
+using Testably.Abstractions.Testing;
 
 namespace Redux_SDK_Manager.Test;
 
@@ -17,7 +18,8 @@ public class MainWindowViewModelTests
         return new ProjectsViewModel(config.Object, Mock.Of<IProjectInfoService>(),
             Mock.Of<ITemplateVersionService>(), Mock.Of<IUnityService>(), Mock.Of<IProjectService>(),
             Mock.Of<ITemplateCatalogService>(), Mock.Of<IGitService>(), Mock.Of<IFilePickerService>(),
-            Mock.Of<IDialogService>(), Mock.Of<ILogService>());
+            Mock.Of<IDialogService>(), new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Windows)),
+            Mock.Of<ILogService>());
     }
 
     private static SettingsViewModel NewSettings()

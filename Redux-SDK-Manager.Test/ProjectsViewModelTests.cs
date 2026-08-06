@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using System.IO.Abstractions;
 using System.Threading.Tasks;
 using Moq;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
 using Redux_SDK_Manager.ViewModels;
+using Testably.Abstractions.Testing;
 
 namespace Redux_SDK_Manager.Test;
 
@@ -20,6 +22,9 @@ public class ProjectsViewModelTests
         return (config, mock);
     }
 
+    private static MockFileSystem WindowsFileSystem() =>
+        new(o => o.SimulatingOperatingSystem(SimulationMode.Windows));
+
     private static ProjectsViewModel NewVm(
         IConfigService config,
         IProjectInfoService? info = null,
@@ -30,11 +35,13 @@ public class ProjectsViewModelTests
         IGitService? git = null,
         IFilePickerService? picker = null,
         IDialogService? dialog = null,
+        IFileSystem? fileSystem = null,
         ILogService? log = null)
         => new(config, info ?? Mock.Of<IProjectInfoService>(), version ?? Mock.Of<ITemplateVersionService>(),
             unity ?? Mock.Of<IUnityService>(), project ?? Mock.Of<IProjectService>(),
             catalog ?? Mock.Of<ITemplateCatalogService>(), git ?? Mock.Of<IGitService>(),
-            picker ?? Mock.Of<IFilePickerService>(), dialog ?? Mock.Of<IDialogService>(), log ?? Mock.Of<ILogService>());
+            picker ?? Mock.Of<IFilePickerService>(), dialog ?? Mock.Of<IDialogService>(),
+            fileSystem ?? WindowsFileSystem(), log ?? Mock.Of<ILogService>());
 
     private static Mock<IGitService> GitAvailable()
     {

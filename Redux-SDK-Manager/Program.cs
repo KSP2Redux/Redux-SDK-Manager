@@ -29,6 +29,9 @@ class Program
     //   3. --pid P --prev V : running from the real location again. Kill stage 2, delete the temp
     //      download V, and fall through to start the app.
     // Returns true when it handled a swap step and the caller should exit without starting the app.
+    // Bootstrap runs before DI exists and copies/deletes the real running executable, so it uses
+    // System.IO directly rather than the injected IFileSystem.
+#pragma warning disable RS0030
     private static bool TryRunUpdateSwap(string[] args)
     {
         var pid = GetArg(args, "--pid");
@@ -78,6 +81,7 @@ class Program
 
         return false;
     }
+#pragma warning restore RS0030
 
     private static string? GetArg(string[] args, string name)
     {

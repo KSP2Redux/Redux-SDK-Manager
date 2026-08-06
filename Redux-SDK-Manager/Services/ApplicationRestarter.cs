@@ -34,6 +34,9 @@ public sealed class ApplicationRestarter : IApplicationRestarter
 
     public void LaunchUpdaterAndExit(string downloadedExePath)
     {
+        // This acts on the real running executable and its download, not a project path, so it must
+        // use System.IO directly rather than the injected IFileSystem.
+#pragma warning disable RS0030
         var self = Path.GetFullPath(Environment.ProcessPath!);
         var startInfo = new ProcessStartInfo
         {
@@ -41,6 +44,7 @@ public sealed class ApplicationRestarter : IApplicationRestarter
             UseShellExecute = false,
             WorkingDirectory = Path.GetDirectoryName(downloadedExePath),
         };
+#pragma warning restore RS0030
         startInfo.ArgumentList.Add("--pid");
         startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
         startInfo.ArgumentList.Add("--exe");
