@@ -110,13 +110,21 @@ public partial class VersionsViewModel : ViewModelBase
         try
         {
             var result = await Task.Run(() => _unityService.InstallUnityVersion(item.UnityVersion!, item.Changeset));
+
+            // Without Unity Hub there is nothing to install into, so offer the Hub download instead.
+            if (result == InstallUnityResult.HubUnavailable)
+            {
+                await _dialog.OfferLinkAsync("Unity Hub required",
+                    "Unity Hub is not installed, so the editor cannot be installed. Install Unity Hub, then try again.",
+                    "Install Unity Hub", DownloadLinks.UnityHub);
+                return;
+            }
+
             var message = result switch
             {
                 InstallUnityResult.Started =>
                     $"Opened Unity Hub to install Unity {item.UnityVersion}. Re-open this tab once it finishes to refresh the status.",
                 InstallUnityResult.AlreadyInstalled => $"Unity {item.UnityVersion} is already installed.",
-                InstallUnityResult.HubUnavailable =>
-                    "Unity Hub is not installed, so the editor cannot be installed.",
                 _ => "",
             };
 

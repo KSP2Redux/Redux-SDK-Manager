@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.ViewModels;
+using Redux_SDK_Manager.Wrappers;
 
 namespace Redux_SDK_Manager.Services;
 
@@ -24,9 +25,15 @@ public interface IDialogService
 
     /// <summary>Shows the grouped, filterable version picker. Returns the chosen version's raw string, or null.</summary>
     Task<string?> SelectVersionAsync(string title, string message, IReadOnlyList<TemplateVersion> versions);
+
+    /// <summary>
+    /// Prompts with an action button that opens <paramref name="url"/> in the browser (e.g. a
+    /// "download" page for a missing prerequisite) and a cancel button. No-op if the user cancels.
+    /// </summary>
+    Task OfferLinkAsync(string title, string message, string actionText, string url);
 }
 
-public partial class DialogService : ObservableObject, IDialogService
+public partial class DialogService(IProcessRunner processRunner) : ObservableObject, IDialogService
 {
     [ObservableProperty]
     private ViewModelBase? _current;
@@ -55,6 +62,22 @@ public partial class DialogService : ObservableObject, IDialogService
     {
         var picker = new VersionPickerViewModel(title, message, versions);
         return await ShowAsync(picker, picker.Completion);
+    }
+
+    public async Task OfferLinkAsync(string title, string message, string actionText, string url)
+    {
+        if (!await ConfirmAsync(title, message, actionText, "Cancel")) return;
+
+        try
+        {
+            processRunner.OpenUrl(url);
+        }
+        catch
+        {
+            // Falling back to showing the link is better than silently doing nothing if no browser
+            // could be launched.
+            await AlertAsync(title, $"Could not open your browser. Visit this page to download:\n{url}");
+        }
     }
 
     private async Task<TResult> ShowAsync<TResult>(ViewModelBase dialog, Task<TResult> completion)

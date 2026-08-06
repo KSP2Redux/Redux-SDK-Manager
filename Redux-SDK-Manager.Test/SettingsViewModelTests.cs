@@ -22,8 +22,10 @@ public class SettingsViewModelTests
         IConfigService config,
         IProcessRunner? runner = null,
         IDialogService? dialog = null,
+        IUpdateCoordinator? updateCoordinator = null,
         ILogService? log = null)
-        => new(config, runner ?? Mock.Of<IProcessRunner>(), dialog ?? Mock.Of<IDialogService>(), log ?? Mock.Of<ILogService>());
+        => new(config, runner ?? Mock.Of<IProcessRunner>(), dialog ?? Mock.Of<IDialogService>(),
+            updateCoordinator ?? Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(), log ?? Mock.Of<ILogService>());
 
     [Test]
     public void Ctor_SeedsFromConfig_WithoutSaving()
@@ -59,6 +61,20 @@ public class SettingsViewModelTests
         await vm.OpenLogsFolderCommand.ExecuteAsync(null);
 
         runner.Verify(r => r.OpenUrl(@"C:\logs"), Times.Once);
+    }
+
+    [Test]
+    public async Task CheckForUpdates_DelegatesToCoordinator_WithUserNotify()
+    {
+        var (_, configMock) = Config();
+        var coordinator = new Mock<IUpdateCoordinator>();
+        coordinator.Setup(c => c.CheckAsync(true)).Returns(Task.CompletedTask);
+
+        var vm = NewVm(configMock.Object, updateCoordinator: coordinator.Object);
+        await vm.CheckForUpdatesCommand.ExecuteAsync(null);
+
+        coordinator.Verify(c => c.CheckAsync(true), Times.Once);
+        Assert.That(vm.IsCheckingForUpdates, Is.False);
     }
 
     [Test]

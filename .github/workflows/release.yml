@@ -1,0 +1,70 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ "main" ]
+
+# Windows-only product: publishes a single-file win-x64 GUI and CLI. The version is read from the
+# shared Directory.Build.props; pushing a bump to main tags v{VERSION} and releases once.
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # needed to see existing tags
+
+      - name: Extract version
+        id: version
+        run: |
+          VERSION=$(grep -oPm1 '(?<=<Version>)[^<]+' Directory.Build.props)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "TAG=v$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Check if tag exists
+        id: check_tag
+        env:
+          TAG: ${{ steps.version.outputs.TAG }}
+        run: |
+          if git show-ref --tags --verify --quiet "refs/tags/$TAG"; then
+            echo "Tag $TAG already exists, skipping release."
+            echo "exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Setup .NET
+        if: steps.check_tag.outputs.exists == 'false'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish single-file win-x64
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          dotnet publish Redux-SDK-Manager/Redux-SDK-Manager.csproj \
+            -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/gui
+          dotnet publish Redux-SDK-Manager.Cli/Redux-SDK-Manager.Cli.csproj \
+            -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/cli
+          mv ./publish/gui/Redux-SDK-Manager.exe ./publish/redux-sdk-gui.exe
+          mv ./publish/cli/redux-sdk-manager-cli.exe ./publish/redux-sdk-cli.exe
+
+      - name: Create release
+        if: steps.check_tag.outputs.exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.TAG }}
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          # Publish as a draft first so the update poller never sees a release before its assets
+          # finish uploading, then flip it public once both binaries are attached.
+          gh release create "$TAG" \
+            ./publish/redux-sdk-gui.exe \
+            ./publish/redux-sdk-cli.exe \
+            --title "Redux SDK Manager v$VERSION" \
+            --generate-notes \
+            --draft
+          gh release edit "$TAG" --draft=false

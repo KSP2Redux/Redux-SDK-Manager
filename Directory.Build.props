@@ -1,0 +1,7 @@
+<Project>
+  <!-- One version for the whole product. Anchored here so Core, the GUI, and the CLI are always
+       stamped identically; the update check reads the Core assembly's version as canonical. -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+</Project>

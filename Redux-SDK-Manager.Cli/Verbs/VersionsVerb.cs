@@ -13,7 +13,8 @@ public static class VersionsVerb
     {
         if (!context.GitAvailable)
         {
-            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE, "git is not installed or not on PATH.");
+            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE,
+                $"git is not installed or not on PATH. Install it from {DownloadLinks.Git}");
         }
 
         IReadOnlyList<TemplateVersion> versions;

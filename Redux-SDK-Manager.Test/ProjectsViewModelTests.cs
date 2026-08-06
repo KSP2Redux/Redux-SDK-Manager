@@ -153,20 +153,38 @@ public class ProjectsViewModelTests
     }
 
     [Test]
-    public async Task CreateProject_AbortsAndAlerts_WhenGitMissing()
+    public async Task CreateProject_AbortsAndOffersInstall_WhenGitMissing()
     {
         var (_, configMock) = Config();
         var git = new Mock<IGitService>();
         git.Setup(g => g.IsInstalled()).Returns(false);
         var dialog = new Mock<IDialogService>();
-        dialog.Setup(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+        dialog.Setup(d => d.OfferLinkAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
         var project = new Mock<IProjectService>();
 
         var vm = NewVm(configMock.Object, git: git.Object, dialog: dialog.Object, project: project.Object);
         await vm.CreateProjectCommand.ExecuteAsync(null);
 
-        dialog.Verify(d => d.AlertAsync("Git required", It.IsAny<string>()), Times.Once);
+        dialog.Verify(d => d.OfferLinkAsync("Git required", It.IsAny<string>(), "Install Git", It.IsAny<string>()), Times.Once);
         project.Verify(p => p.CreateProject(It.IsAny<TemplateVersion>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public async Task Open_HubMissing_OffersUnityHubInstall()
+    {
+        var (_, configMock) = Config(PathA);
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.OpenProject(PathA)).Returns(OpenProjectResult.HubUnavailable);
+        var dialog = new Mock<IDialogService>();
+        dialog.Setup(d => d.OfferLinkAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+        var vm = NewVm(configMock.Object, unity: unity.Object, dialog: dialog.Object);
+        await vm.OpenCommand.ExecuteAsync(vm.Projects[0]);
+
+        dialog.Verify(d => d.OfferLinkAsync("Unity Hub required", It.IsAny<string>(), "Install Unity Hub", It.IsAny<string>()), Times.Once);
+        dialog.Verify(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
     }
 
     [Test]

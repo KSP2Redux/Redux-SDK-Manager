@@ -21,6 +21,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPromptService, DialogPromptService>();
         services.AddSingleton<IFilePickerService, FilePickerService>();
 
+        // Optional self-update (never forced): check, prompt, download/verify/swap.
+        services.AddSingleton<IApplicationRestarter, ApplicationRestarter>();
+        services.AddSingleton<IUpdateApplyService, UpdateApplyService>();
+        services.AddSingleton<IUpdateCoordinator, UpdateCoordinator>();
+
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ProjectsViewModel>();

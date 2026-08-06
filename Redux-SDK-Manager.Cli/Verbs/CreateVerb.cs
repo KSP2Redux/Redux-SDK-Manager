@@ -11,7 +11,8 @@ public static class CreateVerb
     {
         if (!context.GitAvailable)
         {
-            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE, "git is not installed or not on PATH.");
+            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE,
+                $"git is not installed or not on PATH. Install it from {DownloadLinks.Git}");
         }
 
         // --name feeds the project-name prompt without asking (like --yes/--no for confirmations).

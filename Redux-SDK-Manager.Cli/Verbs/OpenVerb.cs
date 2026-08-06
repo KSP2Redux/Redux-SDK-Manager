@@ -58,7 +58,7 @@ public static class OpenVerb
 
             case OpenProjectResult.HubUnavailable:
                 return context.Output.Fail(ExitCode.HUB_UNAVAILABLE,
-                    "The required editor isn't installed and Unity Hub is missing - install it manually.");
+                    $"The required editor isn't installed and Unity Hub is missing. Install it from {DownloadLinks.UnityHub}");
 
             default:
                 return ExitCode.FAILED;

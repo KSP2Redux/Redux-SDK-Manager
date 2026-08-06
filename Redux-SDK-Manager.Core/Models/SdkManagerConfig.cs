@@ -13,6 +13,12 @@ public class SdkManagerConfig
     /// <summary>Git URL of the template distribution repo the manager pulls versions from.</summary>
     public string TemplatesRepositoryUrl { get; set; } = "https://github.com/KSP2Redux/Redux.Templates.git";
 
+    /// <summary>
+    /// GitHub repo (owner/name form or full URL) hosting the manager's own releases, used to check
+    /// for and download self-updates. Placeholder until the real repo is decided.
+    /// </summary>
+    public string ManagerRepositoryUrl { get; set; } = "https://github.com/KSP2Redux/Redux-SDK-Manager";
+
     /// <summary>Filesystem paths of KSP2 mod projects the manager is tracking.</summary>
     public List<string> ProjectPaths { get; set; } = [];
 

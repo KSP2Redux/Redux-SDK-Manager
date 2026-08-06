@@ -1,8 +1,11 @@
 using System;
 using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 using CommandLine;
 using Microsoft.Extensions.DependencyInjection;
 using Redux_SDK_Manager.Cli.Verbs;
+using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
 
 namespace Redux_SDK_Manager.Cli;
@@ -61,11 +64,58 @@ public static class Program
             // for seconds. Warn and above still reaches stderr, and the full log still hits the file.
             log.MinimumLevel = options.IsVerbose ? LogLevel.Debug : LogLevel.Warn;
 
-            return verb(new CliContext(services, output));
+            // Kick off a best-effort update check alongside the verb; notify (never apply) afterwards.
+            var updateCheck = StartUpdateCheck(services);
+            var exit = verb(new CliContext(services, output));
+            NotifyIfUpdateAvailable(updateCheck);
+            return exit;
         }
         catch (Exception e)
         {
             return output.Fail(ExitCode.FAILED, e.Message);
+        }
+    }
+
+    // Runs the update check off-thread with a tight timeout so it overlaps the verb. Opt out with
+    // REDUX_NO_UPDATE_CHECK. Never throws - a failed check just yields no notice.
+    private static Task<UpdateCheckResult?> StartUpdateCheck(IServiceProvider services)
+    {
+        if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("REDUX_NO_UPDATE_CHECK")))
+            return Task.FromResult<UpdateCheckResult?>(null);
+
+        var updateService = services.GetService<IUpdateService>();
+        if (updateService is null) return Task.FromResult<UpdateCheckResult?>(null);
+
+        return Task.Run(async () =>
+        {
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                return await updateService.CheckForUpdateAsync(cts.Token);
+            }
+            catch
+            {
+                return null;
+            }
+        });
+    }
+
+    // The CLI notifies only - it never downloads or replaces itself. Waits briefly for the overlapping
+    // check so a fast command isn't held up if the network is slow.
+    private static void NotifyIfUpdateAvailable(Task<UpdateCheckResult?> updateCheck)
+    {
+        try
+        {
+            if (!updateCheck.Wait(TimeSpan.FromSeconds(2))) return;
+            if (updateCheck.Result is { IsUpdateAvailable: true } result)
+            {
+                Console.Error.WriteLine(
+                    $"Update available: v{result.LatestVersion} (current v{result.CurrentVersion}). Download: {result.ReleasesPageUrl}");
+            }
+        }
+        catch
+        {
+            // Best-effort notice only.
         }
     }
 }

@@ -11,7 +11,8 @@ public static class UpgradeVerb
     {
         if (!context.GitAvailable)
         {
-            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE, "git is not installed or not on PATH.");
+            return context.Output.Fail(ExitCode.GIT_UNAVAILABLE,
+                $"git is not installed or not on PATH. Install it from {DownloadLinks.Git}");
         }
 
         context.Output.Progress($"Upgrading {options.Path} to {options.Version}...");

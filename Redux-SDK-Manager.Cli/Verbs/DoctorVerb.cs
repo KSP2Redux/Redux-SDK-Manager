@@ -14,10 +14,13 @@ public static class DoctorVerb
             new { git = gitInstalled, unityHub = hubInstalled },
             () =>
             {
-                context.Output.Result($"git:        {(gitInstalled ? "installed" : "MISSING")}");
-                context.Output.Result($"Unity Hub:  {(hubInstalled ? "installed" : "MISSING")}");
+                context.Output.Result($"git:        {Status(gitInstalled, DownloadLinks.Git)}");
+                context.Output.Result($"Unity Hub:  {Status(hubInstalled, DownloadLinks.UnityHub)}");
             });
 
         return gitInstalled && hubInstalled ? ExitCode.SUCCESS : ExitCode.FAILED;
     }
+
+    private static string Status(bool installed, string downloadUrl)
+        => installed ? "installed" : $"MISSING (get it at {downloadUrl})";
 }

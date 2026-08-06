@@ -104,6 +104,24 @@ public class VersionsViewModelTests
     }
 
     [Test]
+    public async Task InstallUnity_HubMissing_OffersUnityHubInstall()
+    {
+        var catalog = Catalog(Info("0.2.10.0", "6000.5.0f1", "88b47c5e7076"));
+        var unity = UnityWithInstalled();
+        unity.Setup(u => u.InstallUnityVersion("6000.5.0f1", "88b47c5e7076")).Returns(InstallUnityResult.HubUnavailable);
+        var dialog = new Mock<IDialogService>();
+        dialog.Setup(d => d.OfferLinkAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns(Task.CompletedTask);
+
+        var vm = NewVm(Config().Object, catalog.Object, unity.Object, dialog.Object);
+        await vm.RefreshCommand.ExecuteAsync(null);
+        await vm.InstallUnityCommand.ExecuteAsync(AllItems(vm).Single());
+
+        dialog.Verify(d => d.OfferLinkAsync("Unity Hub required", It.IsAny<string>(), "Install Unity Hub", It.IsAny<string>()), Times.Once);
+        dialog.Verify(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
     public async Task InstallUnity_InvokesServiceAndAlerts()
     {
         var catalog = Catalog(Info("0.2.10.0", "6000.5.0f1", "88b47c5e7076"));

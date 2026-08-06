@@ -25,7 +25,7 @@ public class MainWindowViewModelTests
         var config = new Mock<IConfigService>();
         config.Setup(c => c.Config).Returns(new SdkManagerConfig());
         return new SettingsViewModel(config.Object, Mock.Of<IProcessRunner>(),
-            Mock.Of<IDialogService>(), Mock.Of<ILogService>());
+            Mock.Of<IDialogService>(), Mock.Of<IUpdateCoordinator>(), Mock.Of<IAppVersion>(), Mock.Of<ILogService>());
     }
 
     private static VersionsViewModel NewVersions(Mock<ITemplateCatalogService>? catalog = null)

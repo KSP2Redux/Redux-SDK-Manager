@@ -87,6 +87,16 @@ public partial class ProjectsViewModel : ViewModelBase
             // OpenProject shells out and may prompt (install a missing editor), so it runs off the UI
             // thread. Its IPromptService calls marshal back to the UI thread as dialogs.
             var result = await Task.Run(() => _unityService.OpenProject(item.Path));
+
+            // A missing Unity Hub is offered as an install link rather than a dead-end message.
+            if (result == OpenProjectResult.HubUnavailable)
+            {
+                await _dialog.OfferLinkAsync("Unity Hub required",
+                    "The required editor is not installed and Unity Hub is missing. Install Unity Hub, then try again.",
+                    "Install Unity Hub", DownloadLinks.UnityHub);
+                return;
+            }
+
             var message = result switch
             {
                 OpenProjectResult.Opened => $"Opening {item.Name} in Unity.",
@@ -94,8 +104,6 @@ public partial class ProjectsViewModel : ViewModelBase
                     "The required editor is not installed. Opened Unity Hub to install it. Re-run open once it finishes.",
                 OpenProjectResult.InstallDeclined => "The required editor is not installed, so nothing was opened.",
                 OpenProjectResult.VersionUnknown => "Could not determine the project's Unity version.",
-                OpenProjectResult.HubUnavailable =>
-                    "The required editor is not installed and Unity Hub is missing, so it cannot be installed.",
                 _ => "",
             };
 
@@ -239,7 +247,9 @@ public partial class ProjectsViewModel : ViewModelBase
     private async Task<bool> RequireGitAsync()
     {
         if (_gitService.IsInstalled()) return true;
-        await _dialog.AlertAsync("Git required", "This action needs git installed and on your PATH.");
+        await _dialog.OfferLinkAsync("Git required",
+            "This action needs git installed and on your PATH. Install it, then try again.",
+            "Install Git", DownloadLinks.Git);
         return false;
     }
 

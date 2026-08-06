@@ -34,5 +34,9 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+
+        // Quiet, optional update check at startup. Fire-and-forget: it awaits network I/O so the UI
+        // comes up immediately, and it only surfaces a dialog when an update is actually available.
+        _ = Services.GetRequiredService<IUpdateCoordinator>().CheckAsync(notifyWhenCurrent: false);
     }
 }

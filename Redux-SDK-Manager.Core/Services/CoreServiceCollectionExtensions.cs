@@ -27,6 +27,10 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ITemplateCatalogService, TemplateCatalogService>();
         services.AddSingleton<IProjectService, ProjectService>();
         services.AddSingleton<IUnityService, UnityService>();
+        services.AddSingleton<IAppVersion, AppVersion>();
+        services.AddSingleton<IReleaseClient, GitHubReleaseClient>();
+        services.AddSingleton<IFileDownloader, HttpFileDownloader>();
+        services.AddSingleton<IUpdateService, UpdateService>();
 
         // Non-interactive fallback. Interactive frontends (CLI, later GUI) override it.
         services.TryAddSingleton<IPromptService, DefaultPromptService>();
