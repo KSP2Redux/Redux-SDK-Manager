@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Redux_SDK_Manager.Wrappers;
@@ -22,6 +23,9 @@ public enum ProjectSetupResult
 
     /// <summary>No usable KSP2 executable was supplied.</summary>
     NoGamePath,
+
+    /// <summary>The game's Unity version doesn't match the project's (or couldn't be read), so setup was skipped.</summary>
+    UnityVersionMismatch,
 
     /// <summary>Setup was cancelled before it finished.</summary>
     Cancelled,
@@ -76,6 +80,17 @@ public class ProjectSetupService(
     private const string PhaseDone = "done";
     private const string PhaseError = "error";
 
+    // ThunderKit's reduction: keep only major.minor.patch, so 6000.5.0f1 and 6000.5.0f2 count as a match.
+    private static readonly Regex VersionCore = new(@"(\d{1,4}\.\d+\.\d+)(.*)", RegexOptions.Compiled);
+
+    private static string CoreVersion(string version) => VersionCore.Replace(version, m => m.Groups[1].Value);
+
+    /// <summary>The message shown when setup is skipped over a Unity version mismatch (or unknown game version).</summary>
+    public static string UnityMismatchMessage(string? gameVersion, string? projectVersion)
+        => gameVersion is null
+            ? "Could not read the installed KSP2's Unity version, so automated setup was skipped. Check the KSP2 path or install the game, then run setup."
+            : $"KSP2 is built with Unity {gameVersion} but this project targets Unity {projectVersion ?? "an unknown version"}. Importing would mismatch, so automated setup was skipped. Upgrade the project to a matching Unity version (or use a matching game build), then run setup.";
+
     public bool IsAlreadySetUp(string projectPath)
         => fileSystem.Directory.Exists(fileSystem.Path.Combine(projectPath, "Packages", ImportedGamePackage));
 
@@ -102,6 +117,20 @@ public class ProjectSetupService(
         {
             logService.Warn($"Editor for '{projectPath}' not installed; {EditorMissingMessage}");
             return ProjectSetupResult.EditorMissing;
+        }
+
+        // The game and the project must be the same Unity version (compared on major.minor.patch, the way
+        // ThunderKit's CheckUnityVersion does), or importing the game would mismatch. Skip when they differ,
+        // and skip to be safe when the game version can't be read - this supports importing a mod at an
+        // older version and upgrading it later before setup runs.
+        var projectVersion = unityService.GetProjectUnityVersion(projectPath);
+        var gameVersion = unityService.GetGameUnityVersion(ksp2ExePath);
+        if (projectVersion is null || gameVersion is null
+            || !CoreVersion(gameVersion).Equals(CoreVersion(projectVersion), StringComparison.OrdinalIgnoreCase))
+        {
+            logService.Warn(
+                $"Automated setup skipped for '{projectPath}': game Unity '{gameVersion ?? "unknown"}' vs project Unity '{projectVersion ?? "unknown"}'.");
+            return ProjectSetupResult.UnityVersionMismatch;
         }
 
         var libraryDir = fileSystem.Path.Combine(projectPath, "Library");

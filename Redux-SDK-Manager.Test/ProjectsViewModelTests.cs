@@ -512,6 +512,30 @@ public class ProjectsViewModelTests
             It.Is<string>(m => m.Contains(@"C:\new\Mod\Library\redux-setup.log"))), Times.Once);
     }
 
+    [Test]
+    public async Task CreateProject_SetupUnityMismatch_AlertsSkippedWithVersions()
+    {
+        var (config, configMock) = Config();
+        config.ShowSnapshotVersions = true;
+        config.Ksp2ExePath = Ksp2Exe;
+        var picker = new Mock<IFilePickerService>();
+        picker.Setup(p => p.PickFolderAsync(It.IsAny<string>(), It.IsAny<string?>())).ReturnsAsync(@"C:\new\Mod");
+        var dialog = DialogSelecting("26w32b");
+        dialog.Setup(d => d.AlertAsync(It.IsAny<string>(), It.IsAny<string>())).Returns(Task.CompletedTask);
+        var setup = SetupReturning(ProjectSetupResult.UnityVersionMismatch);
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.GetGameUnityVersion(It.IsAny<string>())).Returns("6000.5.0f1");
+        unity.Setup(u => u.GetProjectUnityVersion(@"C:\new\Mod")).Returns("6000.4.1f1");
+
+        var vm = NewVm(configMock.Object, unity: unity.Object, git: GitAvailable().Object,
+            catalog: CatalogWith("26w32b").Object, picker: picker.Object, dialog: dialog.Object,
+            project: ProjectRegistering(config, @"C:\new\Mod").Object, setup: setup.Object, fileSystem: FileSystemWithKsp2());
+        await vm.CreateProjectCommand.ExecuteAsync(null);
+
+        dialog.Verify(d => d.AlertAsync("Automated setup skipped",
+            It.Is<string>(m => m.Contains("6000.5.0f1") && m.Contains("6000.4.1f1"))), Times.Once);
+    }
+
     private const string RepoUrl = "https://github.com/Falki-git/SASExtended.git";
     private const string CloneParent = @"C:\clones";
     private const string CloneDest = @"C:\clones\SASExtended";

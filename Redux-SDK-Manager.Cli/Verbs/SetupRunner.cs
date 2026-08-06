@@ -23,14 +23,14 @@ public static class SetupRunner
         var setup = context.Get<IProjectSetupService>();
         if (setup.IsAlreadySetUp(projectPath))
         {
-            context.Output.Progress("Project already set up; skipping automated setup.");
+            context.Output.Progress("Project already set up, skipping automated setup.");
             return;
         }
 
         var ksp2 = explicitKsp2 ? options.Ksp2! : config.Ksp2ExePath;
         if (string.IsNullOrWhiteSpace(ksp2))
         {
-            context.Output.Progress("No KSP2 path set; skipping automated setup (set it in the GUI or pass --ksp2).");
+            context.Output.Progress("No KSP2 path set, skipping automated setup (set it in the GUI or pass --ksp2).");
             return;
         }
 
@@ -45,6 +45,11 @@ public static class SetupRunner
                 break;
             case ProjectSetupResult.EditorMissing:
                 context.Output.Warn(ProjectSetupService.EditorMissingMessage);
+                break;
+            case ProjectSetupResult.UnityVersionMismatch:
+                var unity = context.Get<IUnityService>();
+                context.Output.Warn(ProjectSetupService.UnityMismatchMessage(
+                    unity.GetGameUnityVersion(ksp2), unity.GetProjectUnityVersion(projectPath)));
                 break;
             case ProjectSetupResult.NoGamePath:
                 context.Output.Warn("The KSP2 path is not valid; automated setup was skipped.");

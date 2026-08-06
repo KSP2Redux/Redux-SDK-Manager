@@ -38,6 +38,38 @@ public class UnityServiceTest
     }
 
     [Test]
+    public void GetGameUnityVersion_ReadsVersionFromGlobalGameManagers()
+    {
+        var (fs, env) = BuildEnv();
+        // The version sits as an ASCII string in the file header, as it does in a real player build.
+        WriteFile(fs, @"C:\Games\KSP2\KSP2_x64_Data\globalgamemanagers",
+            "serialized-file-header-bytes 6000.5.0f1 followed-by-more-data");
+
+        var version = NewService(fs, env).GetGameUnityVersion(@"C:\Games\KSP2\KSP2_x64.exe");
+
+        Assert.That(version, Is.EqualTo("6000.5.0f1"));
+    }
+
+    [Test]
+    public void GetGameUnityVersion_FallsBackToDataUnity3d()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, @"C:\Games\KSP2\KSP2_x64_Data\data.unity3d", "header 2022.3.5f1 payload");
+
+        var version = NewService(fs, env).GetGameUnityVersion(@"C:\Games\KSP2\KSP2_x64.exe");
+
+        Assert.That(version, Is.EqualTo("2022.3.5f1"));
+    }
+
+    [Test]
+    public void GetGameUnityVersion_NullWhenNoDataFile()
+    {
+        var (fs, env) = BuildEnv();
+
+        Assert.That(NewService(fs, env).GetGameUnityVersion(@"C:\Games\KSP2\KSP2_x64.exe"), Is.Null);
+    }
+
+    [Test]
     public void DetectInstalls_FindsEditors_FromDefaultSecondaryAndManualSources()
     {
         var (fs, env) = BuildEnv();

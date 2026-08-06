@@ -29,6 +29,7 @@ public class SetupRunnerTest
         var services = new ServiceCollection()
             .AddSingleton(configMock.Object)
             .AddSingleton(setup.Object)
+            .AddSingleton(Mock.Of<IUnityService>()) // consulted only on the version-mismatch warning path
             .BuildServiceProvider();
 
         var context = new CliContext(services, new CliOutput(new StringWriter(), isJson: false));

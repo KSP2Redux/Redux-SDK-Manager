@@ -30,6 +30,7 @@ public class ProjectSetupServiceTest
     {
         var unity = new Mock<IUnityService>();
         unity.Setup(u => u.GetProjectUnityVersion(ProjectPath)).Returns(EditorVersion);
+        unity.Setup(u => u.GetGameUnityVersion(It.IsAny<string>())).Returns(EditorVersion); // game matches the project
         unity.Setup(u => u.DetectInstalls()).Returns(new List<UnityInstall> { new(EditorVersion, EditorExe) });
         return unity;
     }
@@ -140,6 +141,69 @@ public class ProjectSetupServiceTest
         var result = await service.RunSetupAsync(ProjectPath, Ksp2Exe, null, CancellationToken.None);
 
         Assert.That(result, Is.EqualTo(ProjectSetupResult.Failed));
+    }
+
+    [Test]
+    public async Task RunSetup_UnityVersionMismatch_SkipsWithoutLaunching()
+    {
+        var fs = WindowsFs();
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.GetProjectUnityVersion(ProjectPath)).Returns("6000.4.1f1");
+        unity.Setup(u => u.GetGameUnityVersion(It.IsAny<string>())).Returns("6000.5.0f1"); // different major.minor.patch
+        unity.Setup(u => u.DetectInstalls()).Returns(new List<UnityInstall> { new("6000.4.1f1", EditorExe) });
+        var runner = RunnerWritingPhases(fs, "done|");
+        var service = NewService(fs, unity.Object, runner.Object);
+
+        var result = await service.RunSetupAsync(ProjectPath, Ksp2Exe, null, CancellationToken.None);
+
+        Assert.That(result, Is.EqualTo(ProjectSetupResult.UnityVersionMismatch));
+        runner.Verify(r => r.RunToExitAsync(It.IsAny<string>(), It.IsAny<IReadOnlyList<string>>(),
+            It.IsAny<string?>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Test]
+    public async Task RunSetup_GameVersionUnknown_SkipsToBeSafe()
+    {
+        var fs = WindowsFs();
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.GetProjectUnityVersion(ProjectPath)).Returns(EditorVersion);
+        unity.Setup(u => u.GetGameUnityVersion(It.IsAny<string>())).Returns((string?)null);
+        unity.Setup(u => u.DetectInstalls()).Returns(new List<UnityInstall> { new(EditorVersion, EditorExe) });
+        var runner = RunnerWritingPhases(fs, "done|");
+        var service = NewService(fs, unity.Object, runner.Object);
+
+        var result = await service.RunSetupAsync(ProjectPath, Ksp2Exe, null, CancellationToken.None);
+
+        Assert.That(result, Is.EqualTo(ProjectSetupResult.UnityVersionMismatch));
+    }
+
+    [Test]
+    public async Task RunSetup_OnlyBuildSuffixDiffers_StillRuns()
+    {
+        // 6000.5.0f1 vs 6000.5.0f2 reduce to the same major.minor.patch, so setup proceeds.
+        var fs = WindowsFs();
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.GetProjectUnityVersion(ProjectPath)).Returns("6000.5.0f1");
+        unity.Setup(u => u.GetGameUnityVersion(It.IsAny<string>())).Returns("6000.5.0f2");
+        unity.Setup(u => u.DetectInstalls()).Returns(new List<UnityInstall> { new("6000.5.0f1", EditorExe) });
+        var runner = RunnerWritingPhases(fs, "import-done|", "done|");
+        var service = NewService(fs, unity.Object, runner.Object);
+
+        var result = await service.RunSetupAsync(ProjectPath, Ksp2Exe, null, CancellationToken.None);
+
+        Assert.That(result, Is.EqualTo(ProjectSetupResult.Completed));
+    }
+
+    [Test]
+    public void UnityMismatchMessage_NamesVersions_AndAvoidsSemicolons()
+    {
+        var mismatch = ProjectSetupService.UnityMismatchMessage("6000.5.0f1", "6000.4.1f1");
+        Assert.That(mismatch, Does.Contain("6000.5.0f1").And.Contain("6000.4.1f1"));
+        Assert.That(mismatch, Does.Not.Contain(";"));
+
+        var unknown = ProjectSetupService.UnityMismatchMessage(null, "6000.4.1f1");
+        Assert.That(unknown, Does.Contain("Could not read"));
+        Assert.That(unknown, Does.Not.Contain(";"));
     }
 
     [Test]

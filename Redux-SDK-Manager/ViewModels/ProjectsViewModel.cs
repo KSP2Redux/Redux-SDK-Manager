@@ -394,6 +394,11 @@ public partial class ProjectsViewModel : ViewModelBase
             case ProjectSetupResult.EditorMissing:
                 await _dialog.AlertAsync("Automated setup", ProjectSetupService.EditorMissingMessage);
                 break;
+            case ProjectSetupResult.UnityVersionMismatch:
+                await _dialog.AlertAsync("Automated setup skipped",
+                    ProjectSetupService.UnityMismatchMessage(
+                        _unityService.GetGameUnityVersion(ksp2), _unityService.GetProjectUnityVersion(projectPath)));
+                break;
             case ProjectSetupResult.Failed:
                 await _dialog.AlertAsync("Automated setup failed",
                     "The automated project setup did not finish. See the log at:\n"

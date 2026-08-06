@@ -49,6 +49,13 @@ public interface IUnityService
     /// <summary>The editor version a project requires (<c>m_EditorVersion</c>), or null.</summary>
     string? GetProjectUnityVersion(string projectPath);
 
+    /// <summary>
+    /// The Unity version the installed game was built with, read from its <c>globalgamemanagers</c>
+    /// (falling back to <c>data.unity3d</c>), or null if it can't be determined. This is how ThunderKit
+    /// checks that the editor and the game match before importing.
+    /// </summary>
+    string? GetGameUnityVersion(string gameExePath);
+
     /// <summary>True if Unity Hub is installed (launch-time warning hook).</summary>
     bool IsHubInstalled();
 
@@ -92,6 +99,51 @@ public partial class UnityService(
     }
 
     public string? GetProjectUnityVersion(string projectPath) => ReadEditorInfo(projectPath).version;
+
+    // The player's Unity version lives as an ASCII string in the serialized-file header of
+    // globalgamemanagers (or the data.unity3d bundle). ThunderKit reads it via AssetsTools; the value is
+    // the same string, so scanning the header for it avoids pulling in that dependency.
+    public string? GetGameUnityVersion(string gameExePath)
+    {
+        var gameDir = fileSystem.Path.GetDirectoryName(gameExePath);
+        if (string.IsNullOrEmpty(gameDir)) return null;
+
+        var dataDir = fileSystem.Path.Combine(gameDir, fileSystem.Path.GetFileNameWithoutExtension(gameExePath) + "_Data");
+
+        foreach (var name in new[] { "globalgamemanagers", "data.unity3d" })
+        {
+            var path = fileSystem.Path.Combine(dataDir, name);
+            if (!fileSystem.File.Exists(path)) continue;
+
+            var version = ReadUnityVersionFromHeader(path);
+            if (version is not null) return version;
+        }
+
+        return null;
+    }
+
+    private const int HeaderScanBytes = 8192;
+
+    private string? ReadUnityVersionFromHeader(string path)
+    {
+        try
+        {
+            var buffer = new byte[HeaderScanBytes];
+            int read;
+            using (var stream = fileSystem.File.OpenRead(path))
+            {
+                read = stream.Read(buffer, 0, buffer.Length);
+            }
+
+            var text = System.Text.Encoding.Latin1.GetString(buffer, 0, read);
+            var match = GameUnityVersionRegex().Match(text);
+            return match.Success ? match.Groups["v"].Value : null;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
 
     // Reads the editor version and its changeset from ProjectSettings/ProjectVersion.txt. The
     // changeset (from m_EditorVersionWithRevision's "(...)") is what Hub needs to install a version
@@ -326,4 +378,8 @@ public partial class UnityService(
 
     [GeneratedRegex(@"^m_EditorVersionWithRevision:\s*\S+\s*\((?<changeset>[^)]+)\)", RegexOptions.Multiline)]
     private static partial Regex EditorRevisionRegex();
+
+    // A Unity version string as embedded in a player build, e.g. 6000.5.0f1 or 2022.3.5f1.
+    [GeneratedRegex(@"(?<v>\d{1,4}\.\d+\.\d+[a-z]\d+)")]
+    private static partial Regex GameUnityVersionRegex();
 }
