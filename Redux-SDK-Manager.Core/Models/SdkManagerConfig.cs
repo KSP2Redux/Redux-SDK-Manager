@@ -15,7 +15,7 @@ public class SdkManagerConfig
 
     /// <summary>
     /// GitHub repo (owner/name form or full URL) hosting the manager's own releases, used to check
-    /// for and download self-updates. Placeholder until the real repo is decided.
+    /// for and download self-updates.
     /// </summary>
     public string ManagerRepositoryUrl { get; set; } = "https://github.com/KSP2Redux/Redux-SDK-Manager";
 
