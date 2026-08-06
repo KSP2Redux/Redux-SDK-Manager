@@ -26,6 +26,17 @@
             <SolidColorBrush x:Key="ComboBoxDropDownBackground" Color="{StaticResource GlassSurfaceColor}" Opacity="0.92" />
             <StaticResource x:Key="ComboBoxDropDownBorderBrush" ResourceKey="GlassSurfaceBorderBrush" />
             <Thickness x:Key="ComboBoxDropdownBorderThickness">2</Thickness>
+
+            <!--
+                ComboBox item hover/selection default to the Fluent system accent (a teal that clashes
+                with the theme). Retint to a translucent brand red for selection and a faint white
+                wash for hover.
+            -->
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPointerOver" Color="White" Opacity="0.08" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundPressed" Color="{StaticResource BrandRedColor}" Opacity="0.5" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelected" Color="{StaticResource BrandRedColor}" Opacity="0.5" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPointerOver" Color="{StaticResource BrandRedColor}" Opacity="0.65" />
+            <SolidColorBrush x:Key="ComboBoxItemBackgroundSelectedPressed" Color="{StaticResource BrandRedColor}" Opacity="0.6" />
         </ResourceDictionary>
     </Styles.Resources>
 

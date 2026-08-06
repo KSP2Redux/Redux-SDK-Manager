@@ -2,8 +2,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:Redux_SDK_Manager"
              x:Class="Redux_SDK_Manager.App"
-             RequestedThemeVariant="Default">
-             <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+             RequestedThemeVariant="Dark">
+             <!-- The app is a dark glass theme, so pin Fluent to Dark. Following the system variant
+                  left TextBoxes / list items / buttons using light-mode chrome (dark text on light
+                  fills) that clashed and read as illegible. -->
 
     <Application.DataTemplates>
         <local:ViewLocator />

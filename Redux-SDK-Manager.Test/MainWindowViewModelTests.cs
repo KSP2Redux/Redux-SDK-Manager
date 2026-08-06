@@ -2,6 +2,7 @@ using Moq;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
 using Redux_SDK_Manager.ViewModels;
+using Redux_SDK_Manager.Wrappers;
 
 namespace Redux_SDK_Manager.Test;
 
@@ -12,12 +13,21 @@ public class MainWindowViewModelTests
         var config = new Mock<IConfigService>();
         config.Setup(c => c.Config).Returns(new SdkManagerConfig());
         return new ProjectsViewModel(config.Object, Mock.Of<IProjectInfoService>(),
-            Mock.Of<ITemplateVersionService>(), Mock.Of<IUnityService>(),
+            Mock.Of<ITemplateVersionService>(), Mock.Of<IUnityService>(), Mock.Of<IProjectService>(),
+            Mock.Of<ITemplateCatalogService>(), Mock.Of<IGitService>(), Mock.Of<IFilePickerService>(),
+            Mock.Of<IDialogService>(), Mock.Of<ILogService>());
+    }
+
+    private static SettingsViewModel NewSettings()
+    {
+        var config = new Mock<IConfigService>();
+        config.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        return new SettingsViewModel(config.Object, Mock.Of<IProcessRunner>(),
             Mock.Of<IDialogService>(), Mock.Of<ILogService>());
     }
 
     private static MainWindowViewModel NewViewModel()
-        => new(NewProjects(), new VersionsViewModel(), new SettingsViewModel(), Mock.Of<IDialogService>());
+        => new(NewProjects(), new VersionsViewModel(), NewSettings(), Mock.Of<IDialogService>());
 
     [Test]
     public void CurrentTab_DefaultsToProjects()

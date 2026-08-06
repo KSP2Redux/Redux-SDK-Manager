@@ -22,6 +22,12 @@ public interface IConfigService
     /// </summary>
     /// <returns>The local storage directory</returns>
     string GetLocalStorageDirectory();
+
+    /// <summary>
+    /// Get the directory the manager writes its log files to.
+    /// </summary>
+    /// <returns>The logs directory</returns>
+    string GetLogsDirectory();
 }
 
 public class ConfigService : IConfigService
@@ -53,6 +59,10 @@ public class ConfigService : IConfigService
     /// <inheritdoc/>
     public string GetLocalStorageDirectory()
         => LocalStoragePaths.GetLocalStorageDirectory(_fileSystem, _environmentProvider);
+
+    /// <inheritdoc/>
+    public string GetLogsDirectory()
+        => LocalStoragePaths.GetLogsDirectory(_fileSystem, _environmentProvider);
 
 
     private string GetConfigFilePath()

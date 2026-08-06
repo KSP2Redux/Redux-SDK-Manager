@@ -31,10 +31,11 @@
     <Color x:Key="WarningColor">#D9A441</Color>
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}" />
 
-    <!-- Neutral buttons -->
-    <Color x:Key="NeutralButtonColor">#666666</Color>
-    <Color x:Key="NeutralButtonHoverColor">#333333</Color>
-    <SolidColorBrush x:Key="NeutralButtonBrush" Color="{StaticResource NeutralButtonColor}" Opacity="0.4" />
+    <!-- Neutral buttons: solid enough to read as enabled (a faint fill looked disabled), with a
+         lighter hover so the affordance is obvious. -->
+    <Color x:Key="NeutralButtonColor">#6E6E6E</Color>
+    <Color x:Key="NeutralButtonHoverColor">#838383</Color>
+    <SolidColorBrush x:Key="NeutralButtonBrush" Color="{StaticResource NeutralButtonColor}" Opacity="0.85" />
     <SolidColorBrush x:Key="NeutralButtonHoverBrush" Color="{StaticResource NeutralButtonHoverColor}" />
 
     <!-- Disabled state, e.g. the sidebar refresh button while a fetch is in flight -->
@@ -66,6 +67,11 @@
 
     <!-- Elevation: drop shadow shared by every glass panel -->
     <BoxShadows x:Key="GlassPanelShadow">0 8 24 0 #66000000</BoxShadows>
+
+    <!-- List selection / hover: brand-red fill for the selected row, faint white for hover.
+         Replaces Fluent's system-accent teal on ListBox/ComboBox items. -->
+    <SolidColorBrush x:Key="ListSelectionBrush" Color="{StaticResource BrandRedColor}" Opacity="0.55" />
+    <SolidColorBrush x:Key="ListHoverBrush" Color="White" Opacity="0.08" />
 
     <!-- Text -->
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="White" />

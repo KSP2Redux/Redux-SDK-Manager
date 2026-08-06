@@ -11,8 +11,11 @@
                            Foreground="{StaticResource TextPrimaryBrush}"
                            FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="18"
                            VerticalAlignment="Center" />
-                <Button Grid.Column="1" Content="Refresh" Command="{Binding LoadCommand}"
-                        VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <Button Content="New" Classes="success" Command="{Binding CreateProjectCommand}" />
+                    <Button Content="Add Existing" Command="{Binding AddProjectCommand}" />
+                    <Button Content="Refresh" Command="{Binding LoadCommand}" />
+                </StackPanel>
             </Grid>
 
             <!-- Empty state -->
@@ -46,6 +49,9 @@
                                                 VerticalAlignment="Center">
                                         <Button Content="Open" Classes="success"
                                                 Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Upgrade"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).UpgradeCommand}"
                                                 CommandParameter="{Binding}" />
                                         <Button Content="Remove" Classes="danger"
                                                 Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).RemoveCommand}"

@@ -15,4 +15,10 @@ public class SdkManagerConfig
 
     /// <summary>Filesystem paths of KSP2 mod projects the manager is tracking.</summary>
     public List<string> ProjectPaths { get; set; } = [];
+
+    /// <summary>
+    /// Whether snapshot (in-development) template versions are offered in the version picker.
+    /// Off by default so most users only see stable releases.
+    /// </summary>
+    public bool ShowSnapshotVersions { get; set; } = false;
 }

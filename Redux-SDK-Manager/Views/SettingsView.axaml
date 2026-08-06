@@ -3,10 +3,39 @@
              xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
              x:Class="Redux_SDK_Manager.Views.SettingsView"
              x:DataType="vm:SettingsViewModel">
-    <TextBlock Text="Settings"
-               Foreground="{StaticResource TextFaintBrush}"
-               FontFamily="{StaticResource JetBrainsMonoLight}"
-               FontSize="28"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center" />
+    <Grid RowDefinitions="Auto,*,Auto" Margin="18">
+        <!-- Header -->
+        <TextBlock Grid.Row="0" Text="Settings"
+                   Foreground="{StaticResource TextPrimaryBrush}"
+                   FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="18"
+                   Margin="0,0,0,14" />
+
+        <!-- Preferences -->
+        <StackPanel Grid.Row="1" Spacing="12">
+            <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
+                    BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusMedium}" Padding="14,12">
+                <StackPanel Spacing="4">
+                    <CheckBox IsChecked="{Binding ShowSnapshotVersions, Mode=TwoWay}"
+                              Content="Show snapshot versions"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="14" />
+                    <TextBlock Text="Offer in-development snapshot template versions in the version picker. Off by default. Projects already on a snapshot are unaffected."
+                               Foreground="{StaticResource TextFaintBrush}"
+                               FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="11"
+                               TextWrapping="Wrap" Margin="28,0,0,0" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Footer: utilities + version -->
+        <Grid Grid.Row="2" ColumnDefinitions="Auto,*" Margin="0,14,0,0" VerticalAlignment="Center">
+            <Button Grid.Column="0" Content="Open Logs Folder" Command="{Binding OpenLogsFolderCommand}" />
+            <TextBlock Grid.Column="1"
+                       Text="{Binding AppVersion, StringFormat='Manager v{0}'}"
+                       Foreground="{StaticResource TextFaintBrush}"
+                       FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="11"
+                       HorizontalAlignment="Right" VerticalAlignment="Center" />
+        </Grid>
+    </Grid>
 </UserControl>

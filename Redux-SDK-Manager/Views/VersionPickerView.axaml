@@ -1,0 +1,118 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
+             xmlns:models="using:Redux_SDK_Manager.Models"
+             xmlns:ac="using:Avalonia.Data.Converters"
+             x:Class="Redux_SDK_Manager.Views.VersionPickerView"
+             x:DataType="vm:VersionPickerViewModel">
+    <UserControl.Styles>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{StaticResource BrandRedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{StaticResource BrandRedHoverBrush}" />
+            </Style>
+        </Style>
+
+        <!-- Flat, transparent collapse header for a section (no Fluent toggle accent). -->
+        <Style Selector="ToggleButton.section-header">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="8,6" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style Selector="^:checked /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="Transparent" />
+            </Style>
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{StaticResource ListHoverBrush}" />
+            </Style>
+        </Style>
+
+        <!-- Selectable version row. Single click sets the selection (no ListBox two-click). -->
+        <Style Selector="Button.version-row">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="Margin" Value="0,1" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{StaticResource ListHoverBrush}" />
+            </Style>
+        </Style>
+        <Style Selector="Button.version-row.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{StaticResource ListSelectionBrush}" />
+        </Style>
+        <Style Selector="Button.version-row TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+        </Style>
+        <Style Selector="Button.version-row.selected TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        </Style>
+    </UserControl.Styles>
+
+    <Border MaxWidth="480" MinWidth="400"
+            Background="{StaticResource GlassSurfaceColor}"
+            BorderBrush="{StaticResource GlassSurfaceBorderBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource RadiusLarge}"
+            BoxShadow="{StaticResource GlassPanelShadow}"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="22" MaxHeight="480">
+            <TextBlock Grid.Row="0" Text="{Binding Title}"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="16" Margin="0,0,0,12" />
+
+            <TextBox Grid.Row="1" Text="{Binding Filter, Mode=TwoWay}"
+                     PlaceholderText="Filter versions..."
+                     FontFamily="{StaticResource JetBrainsMonoRegular}" Margin="0,0,0,10" />
+
+            <ScrollViewer Grid.Row="2">
+                <ItemsControl ItemsSource="{Binding Groups}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:VersionGroupViewModel">
+                            <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
+                                    BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusMedium}" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <ToggleButton Classes="section-header" IsChecked="{Binding IsExpanded, Mode=TwoWay}"
+                                                  HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <TextBlock Grid.Column="0" Text="{Binding Channel}"
+                                                       Foreground="{StaticResource TextMutedBrush}"
+                                                       FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="&#x25BE;" IsVisible="{Binding IsExpanded}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBlock Grid.Column="1" Text="&#x25B8;" IsVisible="{Binding !IsExpanded}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        </Grid>
+                                    </ToggleButton>
+                                    <ItemsControl IsVisible="{Binding IsExpanded}" ItemsSource="{Binding Versions}"
+                                                  Margin="4,0,4,4">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate DataType="vm:VersionItemViewModel">
+                                                <Button Classes="version-row" Classes.selected="{Binding IsSelected}"
+                                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                                                        Command="{Binding $parent[UserControl].((vm:VersionPickerViewModel)DataContext).SelectCommand}"
+                                                        CommandParameter="{Binding}">
+                                                    <TextBlock Text="{Binding Raw}"
+                                                               FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="13" />
+                                                </Button>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+
+            <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8" Margin="0,12,0,0">
+                <Button Content="Cancel" Command="{Binding CancelCommand}" MinWidth="88" />
+                <Button Content="Use version" Classes="primary" Command="{Binding ConfirmCommand}" MinWidth="88"
+                        IsEnabled="{Binding SelectedVersion, Converter={x:Static ac:ObjectConverters.IsNotNull}}" />
+            </StackPanel>
+        </Grid>
+    </Border>
+</UserControl>

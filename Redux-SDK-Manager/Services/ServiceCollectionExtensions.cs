@@ -19,6 +19,7 @@ public static class ServiceCollectionExtensions
         // Confirm/Alert/Ask become modal dialogs.
         services.AddSingleton<IDialogService, DialogService>();
         services.AddSingleton<IPromptService, DialogPromptService>();
+        services.AddSingleton<IFilePickerService, FilePickerService>();
 
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
