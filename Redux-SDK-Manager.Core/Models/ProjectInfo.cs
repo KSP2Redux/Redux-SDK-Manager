@@ -13,4 +13,10 @@ public sealed class ProjectInfo
 
     /// <summary>The template version the project is on (raw form, e.g. <c>26w32b</c>), or null.</summary>
     public string? Version { get; set; }
+
+    /// <summary>
+    /// Whether the SDK package is embedded into <c>Packages/</c> for local development. When true, an
+    /// upgrade keeps the existing embedded checkout rather than re-cloning over the developer's edits.
+    /// </summary>
+    public bool EmbedSdk { get; set; }
 }

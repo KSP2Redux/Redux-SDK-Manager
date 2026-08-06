@@ -10,7 +10,7 @@ public static class ImportVerb
     {
         try
         {
-            var version = context.Get<IProjectService>().ImportProject(options.Path!);
+            var version = context.Get<IProjectService>().ImportProject(options.Path!, options.EmbedSdk);
 
             context.Output.Payload(
                 new { ok = true, path = options.Path, version = version.Raw, channel = version.Channel.ToString() },

@@ -31,9 +31,9 @@ public class ProjectServiceTest
     private static ProjectService NewService(
         ITemplateCatalogService catalog, ITemplateVersionService versionService,
         IConfigService config, MockFileSystem fs,
-        IPromptService? prompt = null, ILogService? log = null)
+        IPromptService? prompt = null, ILogService? log = null, ISdkEmbedService? sdkEmbed = null)
         => new(catalog, versionService, NewInfo(fs), config, fs,
-            log ?? Mock.Of<ILogService>(), prompt ?? new DefaultPromptService());
+            sdkEmbed ?? Mock.Of<ISdkEmbedService>(), log ?? Mock.Of<ILogService>(), prompt ?? new DefaultPromptService());
 
     // --- CreateProject ---
 
@@ -152,6 +152,99 @@ public class ProjectServiceTest
         Assert.That(NewInfo(fs).Read(TargetPath)!.Name, Is.EqualTo("Cool Mod"));
     }
 
+    // --- SDK embedding ---
+
+    private static Mock<ITemplateCatalogService> CatalogWritingVersion(MockFileSystem fs, string version)
+    {
+        var catalog = new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.FetchVersion(It.IsAny<TemplateVersion>(), It.IsAny<string>()))
+            .Callback<TemplateVersion, string>((_, dir) =>
+                WriteFile(fs, fs.Path.Combine(dir, "template.version"), version));
+        return catalog;
+    }
+
+    [Test]
+    public void CreateProject_EmbedSdk_StagesThenCommits_AndFlagsProjectInfo()
+    {
+        var fs = NewFs();
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        var sdk = new Mock<ISdkEmbedService>();
+        sdk.Setup(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>())).Returns(@"C:\staging");
+
+        var service = NewService(CatalogWritingVersion(fs, "26w32a").Object,
+            Mock.Of<ITemplateVersionService>(), configMock.Object, fs, sdkEmbed: sdk.Object);
+        service.CreateProject(TemplateVersion.Parse("26w32a"), TargetPath, embedSdk: true);
+
+        sdk.Verify(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>()), Times.Once);
+        sdk.Verify(s => s.Commit(TargetPath, @"C:\staging"), Times.Once);
+        Assert.That(NewInfo(fs).Read(TargetPath)!.EmbedSdk, Is.True);
+    }
+
+    [Test]
+    public void CreateProject_EmbedSdk_StageFails_AbortsBeforeMaterializing()
+    {
+        var fs = NewFs();
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        var sdk = new Mock<ISdkEmbedService>();
+        sdk.Setup(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>()))
+            .Throws(new System.InvalidOperationException("clone failed"));
+
+        var service = NewService(CatalogWritingVersion(fs, "26w32a").Object,
+            Mock.Of<ITemplateVersionService>(), configMock.Object, fs, sdkEmbed: sdk.Object);
+
+        Assert.That(() => service.CreateProject(TemplateVersion.Parse("26w32a"), TargetPath, embedSdk: true),
+            Throws.TypeOf<System.InvalidOperationException>());
+        // The clone is staged before the tree is copied, so a failure leaves nothing behind.
+        Assert.That(fs.Directory.Exists(TargetPath), Is.False);
+        sdk.Verify(s => s.Commit(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public void UpgradeProject_KeepsEmbeddingFlaggedInProjectInfo_EvenWithoutTheFlag()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "template.version"), "0.2.8.5");
+        NewInfo(fs).Write(ProjectPath, new ProjectInfo { Name = "Cool Mod", Version = "0.2.8.5", EmbedSdk = true });
+
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        var sdk = new Mock<ISdkEmbedService>();
+        sdk.Setup(s => s.IsEmbedded(ProjectPath)).Returns(false);
+        sdk.Setup(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>())).Returns(@"C:\staging");
+
+        var service = NewService(CatalogWritingVersion(fs, "26w32a").Object,
+            NewVersionService(fs), configMock.Object, fs, sdkEmbed: sdk.Object);
+        // embedSdk arg is false, but project.info already has it, so the upgrade re-embeds.
+        service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"), embedSdk: false);
+
+        sdk.Verify(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>()), Times.Once);
+        Assert.That(NewInfo(fs).Read(ProjectPath)!.EmbedSdk, Is.True);
+    }
+
+    [Test]
+    public void UpgradeProject_AlreadyEmbedded_SkipsCloneButStaysFlagged()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "template.version"), "0.2.8.5");
+        NewInfo(fs).Write(ProjectPath, new ProjectInfo { Name = "Cool Mod", Version = "0.2.8.5", EmbedSdk = true });
+
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        var sdk = new Mock<ISdkEmbedService>();
+        sdk.Setup(s => s.IsEmbedded(ProjectPath)).Returns(true); // developer's checkout already present
+
+        var service = NewService(CatalogWritingVersion(fs, "26w32a").Object,
+            NewVersionService(fs), configMock.Object, fs, sdkEmbed: sdk.Object);
+        service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
+
+        // No re-clone (the dev's checkout is kept), but a null-staging commit still re-applies gitignore.
+        sdk.Verify(s => s.StageClone(It.IsAny<string>(), It.IsAny<TemplateVersion>()), Times.Never);
+        sdk.Verify(s => s.Commit(ProjectPath, null), Times.Once);
+        Assert.That(NewInfo(fs).Read(ProjectPath)!.EmbedSdk, Is.True);
+    }
+
     // --- UpgradeProject ---
 
     [Test]
@@ -228,6 +321,40 @@ public class ProjectServiceTest
         service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a"));
 
         Assert.That(fs.File.Exists(fs.Path.Combine(ProjectPath, "Packages", "packages-lock.json")), Is.False);
+    }
+
+    [Test]
+    public void UpgradeProject_LibraryLocked_CompletesAndWarns_WithoutThrowing()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "template.version"), "0.2.8.5");
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "Library", "cache.bin"), "cache");
+
+        // Simulate Unity (or an IDE) holding Library open: every attempt to delete it throws.
+        fs.Intercept.Deleting(FileSystemTypes.Directory,
+            _ => throw new System.IO.IOException("Library is in use"),
+            predicate: change => change.Path.EndsWith("Library"));
+
+        var catalog = new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.FetchVersion(It.IsAny<TemplateVersion>(), It.IsAny<string>()))
+            .Callback<TemplateVersion, string>((_, dir) =>
+                WriteFile(fs, fs.Path.Combine(dir, "template.version"), "26w32a"));
+
+        var config = new SdkManagerConfig();
+        var configMock = new Mock<IConfigService>();
+        configMock.Setup(c => c.Config).Returns(config);
+
+        var prompt = new Mock<IPromptService>();
+        var service = NewService(catalog.Object, NewVersionService(fs), configMock.Object, fs, prompt.Object);
+
+        // The lock must not abort the upgrade: it still completes and tracks the project.
+        Assert.That(() => service.UpgradeProject(ProjectPath, TemplateVersion.Parse("26w32a")), Throws.Nothing);
+        Assert.That(NewInfo(fs).Read(ProjectPath)!.Version, Is.EqualTo("26w32a"));
+        Assert.That(config.ProjectPaths, Does.Contain(ProjectPath));
+
+        // Library remained (couldn't be cleared) and the user was told which files to remove by hand.
+        Assert.That(fs.Directory.Exists(fs.Path.Combine(ProjectPath, "Library")), Is.True);
+        prompt.Verify(p => p.Alert(It.Is<string>(m => m.Contains("Library"))), Times.Once);
     }
 
     [Test]

@@ -18,7 +18,7 @@ public static class UpgradeVerb
         context.Output.Progress($"Upgrading {options.Path} to {options.Version}...");
         try
         {
-            context.Get<IProjectService>().UpgradeProject(options.Path!, TemplateVersion.Parse(options.Version!));
+            context.Get<IProjectService>().UpgradeProject(options.Path!, TemplateVersion.Parse(options.Version!), options.EmbedSdk);
         }
         catch (Exception e)
         {

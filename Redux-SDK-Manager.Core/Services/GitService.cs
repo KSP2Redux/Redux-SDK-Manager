@@ -17,6 +17,12 @@ public interface IGitService
     void Clone(string repositoryUrl, string reference, string destinationPath);
 
     /// <summary>
+    /// Clones a repository and checks out an arbitrary reference (branch, tag, or commit) into
+    /// <paramref name="destinationPath"/>. Used to embed the SDK package at the project's pinned ref.
+    /// </summary>
+    void CloneAndCheckout(string repositoryUrl, string reference, string destinationPath);
+
+    /// <summary>
     /// Full-clones a repository (all history and tags) into <paramref name="destinationPath"/>, for
     /// keeping a local mirror the manager reads tags and files from.
     /// </summary>
@@ -79,6 +85,23 @@ public class GitService(IProcessRunner processRunner) : IGitService
         {
             throw new InvalidOperationException(
                 $"git clone of '{reference}' from '{repositoryUrl}' failed (exit {result.ExitCode}): {result.StandardError.Trim()}");
+        }
+    }
+
+    public void CloneAndCheckout(string repositoryUrl, string reference, string destinationPath)
+    {
+        var clone = processRunner.Run(GitExecutable, ["clone", repositoryUrl, destinationPath]);
+        if (clone.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git clone of '{repositoryUrl}' failed (exit {clone.ExitCode}): {clone.StandardError.Trim()}");
+        }
+
+        var checkout = processRunner.Run(GitExecutable, ["checkout", reference], destinationPath);
+        if (checkout.ExitCode != 0)
+        {
+            throw new InvalidOperationException(
+                $"git checkout of '{reference}' in '{destinationPath}' failed (exit {checkout.ExitCode}): {checkout.StandardError.Trim()}");
         }
     }
 

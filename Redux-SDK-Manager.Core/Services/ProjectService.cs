@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Threading;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services.Merging;
 
@@ -14,8 +15,10 @@ public interface IProjectService
     /// Creates a new project at <paramref name="targetPath"/> from a template version: fetches the
     /// version's tree, materializes it (minus git metadata), and records it in config. The
     /// <c>template.version</c> stamp rides along in the tree. Throws if the target is non-empty.
+    /// When <paramref name="embedSdk"/> is set, the SDK package is cloned into <c>Packages/</c> for
+    /// local development (and the clone must succeed or the whole operation fails).
     /// </summary>
-    void CreateProject(TemplateVersion version, string targetPath);
+    void CreateProject(TemplateVersion version, string targetPath, bool embedSdk = false);
 
     /// <summary>
     /// Upgrades (or repairs) an existing managed project to <paramref name="toVersion"/>. Fetches
@@ -23,9 +26,11 @@ public interface IProjectService
     /// the target, overlays the target tree, deletes SDK-copied files so the SDK regenerates them,
     /// and clears the regenerated Unity/ThunderKit caches. Files outside the template tree (the
     /// authored mod, dependency drops) are untouched. Throws if the project has no readable
-    /// <c>template.version</c>.
+    /// <c>template.version</c>. Embedding is preserved across an upgrade: a project already flagged
+    /// <c>embed_sdk</c> stays embedded (its working checkout is kept), and <paramref name="embedSdk"/>
+    /// can additionally turn it on.
     /// </summary>
-    void UpgradeProject(string projectPath, TemplateVersion toVersion);
+    void UpgradeProject(string projectPath, TemplateVersion toVersion, bool embedSdk = false);
 
     /// <summary>
     /// Adopts an existing pre-manager project (one with no <c>template.version</c>) and brings it to
@@ -33,17 +38,19 @@ public interface IProjectService
     /// an overlay only. The target tree is written over the project and stamped, but stale files
     /// from the original template that no longer exist in the target cannot be identified or removed
     /// (a later <see cref="UpgradeProject"/> from this version onward handles deletions). Throws if
-    /// the path isn't a Unity project or is already a managed project.
+    /// the path isn't a Unity project or is already a managed project. When <paramref name="embedSdk"/>
+    /// is set, the SDK package is embedded for local development.
     /// </summary>
-    void IngestProject(string projectPath, TemplateVersion version);
+    void IngestProject(string projectPath, TemplateVersion version, bool embedSdk = false);
 
     /// <summary>
     /// Registers an already-managed project (one that already has a <c>template.version</c>, e.g. a
     /// fresh clone from a git repo) with the manager as-is. Tracks it in config and touches nothing
     /// else. Returns the detected version. Throws if the directory is missing or the project isn't
-    /// managed (use <see cref="IngestProject"/> for an unmanaged project).
+    /// managed (use <see cref="IngestProject"/> for an unmanaged project). When <paramref name="embedSdk"/>
+    /// is set, the SDK package is embedded for local development.
     /// </summary>
-    TemplateVersion ImportProject(string projectPath);
+    TemplateVersion ImportProject(string projectPath, bool embedSdk = false);
 }
 
 public class ProjectService(
@@ -52,6 +59,7 @@ public class ProjectService(
     IProjectInfoService projectInfoService,
     IConfigService configService,
     IFileSystem fileSystem,
+    ISdkEmbedService sdkEmbedService,
     ILogService logService,
     IPromptService promptService) : IProjectService
 {
@@ -61,7 +69,7 @@ public class ProjectService(
     private const string ApplyAlert =
         "Project initialization complete, on next launch there will be compiler errors, ignore them and import via thunderkit as normal.";
 
-    public void CreateProject(TemplateVersion version, string targetPath)
+    public void CreateProject(TemplateVersion version, string targetPath, bool embedSdk = false)
     {
         if (fileSystem.Directory.Exists(targetPath) &&
             fileSystem.Directory.EnumerateFileSystemEntries(targetPath).Any())
@@ -74,23 +82,27 @@ public class ProjectService(
         logService.Info($"Creating project '{name}' at '{targetPath}' from template {version.Raw}.");
 
         var fetchDir = NewFetchDir();
+        string? sdkStaging = null;
         try
         {
             catalogService.FetchVersion(version, fetchDir);
+            // Stage the SDK clone before materializing the project so a clone failure aborts cleanly.
+            if (embedSdk) sdkStaging = sdkEmbedService.StageClone(fetchDir, version);
             CopyTree(fetchDir, targetPath);
         }
         finally
         {
-            TryDeleteDirectory(fetchDir);
+            DeleteDirectory(fetchDir);
         }
 
-        StampProject(targetPath, name, version);
+        StampProject(targetPath, name, version, embedSdk);
         TrackProject(targetPath);
+        if (embedSdk) sdkEmbedService.Commit(targetPath, sdkStaging);
         logService.Info($"Created project '{name}' at '{targetPath}'.");
         promptService.Alert(CreateAlert);
     }
 
-    public void UpgradeProject(string projectPath, TemplateVersion toVersion)
+    public void UpgradeProject(string projectPath, TemplateVersion toVersion, bool embedSdk = false)
     {
         var currentVersion = versionService.DetectProjectVersion(projectPath)
             ?? throw new InvalidOperationException(
@@ -99,15 +111,18 @@ public class ProjectService(
         // The overlay resets template-owned files (and Unity's productName) but never touches
         // project.info, so the existing name carries across the upgrade. Fall back to the folder
         // name for a project the manager has not stamped project.info into yet.
-        var name = NonEmptyOr(projectInfoService.Read(projectPath)?.Name, FolderName(projectPath));
+        var info = projectInfoService.Read(projectPath);
+        var name = NonEmptyOr(info?.Name, FolderName(projectPath));
+        // Keep an already-embedded project embedded across the upgrade.
+        var embed = embedSdk || (info?.EmbedSdk ?? false);
 
         logService.Info($"Upgrading '{projectPath}' ('{name}') from {currentVersion.Raw} to {toVersion.Raw}.");
-        ApplyVersion(projectPath, toVersion, currentVersion);
-        StampProject(projectPath, name, toVersion);
+        ApplyVersion(projectPath, toVersion, currentVersion, embed);
+        StampProject(projectPath, name, toVersion, embed);
         TrackProject(projectPath);
     }
 
-    public void IngestProject(string projectPath, TemplateVersion version)
+    public void IngestProject(string projectPath, TemplateVersion version, bool embedSdk = false)
     {
         if (!LooksLikeUnityProject(projectPath))
         {
@@ -123,12 +138,12 @@ public class ProjectService(
 
         var name = NonEmptyOr(promptService.Ask("Project name", FolderName(projectPath)), FolderName(projectPath));
         logService.Info($"Ingesting '{projectPath}' as '{name}' at template {version.Raw}.");
-        ApplyVersion(projectPath, version, fromVersion: null);
-        StampProject(projectPath, name, version);
+        ApplyVersion(projectPath, version, fromVersion: null, embedSdk);
+        StampProject(projectPath, name, version, embedSdk);
         TrackProject(projectPath);
     }
 
-    public TemplateVersion ImportProject(string projectPath)
+    public TemplateVersion ImportProject(string projectPath, bool embedSdk = false)
     {
         if (!fileSystem.Directory.Exists(projectPath))
         {
@@ -139,20 +154,43 @@ public class ProjectService(
             ?? throw new InvalidOperationException(
                 $"'{projectPath}' is not a managed project (no template.version). Use IngestProject to adopt an unmanaged project.");
 
+        // Stage the SDK clone (from the project's own manifest) before tracking, so a clone failure
+        // aborts before anything is recorded.
+        var sdkStaging = embedSdk && !sdkEmbedService.IsEmbedded(projectPath)
+            ? sdkEmbedService.StageClone(projectPath, version)
+            : null;
+
         TrackProject(projectPath);
+
+        if (embedSdk)
+        {
+            sdkEmbedService.Commit(projectPath, sdkStaging);
+            var info = projectInfoService.Read(projectPath) ?? new ProjectInfo { Version = version.Raw };
+            info.EmbedSdk = true;
+            projectInfoService.Write(projectPath, info);
+        }
+
         logService.Info($"Imported '{projectPath}' (template {version.Raw}).");
         return version;
     }
 
     // Overlays toVersion's tree onto the project. When fromVersion is known (upgrade), also removes
     // template files that no longer exist in the target; when null (ingest), overlays only.
-    private void ApplyVersion(string projectPath, TemplateVersion toVersion, TemplateVersion? fromVersion)
+    private void ApplyVersion(string projectPath, TemplateVersion toVersion, TemplateVersion? fromVersion, bool embedSdk)
     {
         var newFetch = NewFetchDir();
         var oldFetch = fromVersion is null ? null : NewFetchDir();
+        string? sdkStaging = null;
         try
         {
             catalogService.FetchVersion(toVersion, newFetch);
+
+            // Stage the SDK clone (from the version being applied) before overlaying, so a clone
+            // failure aborts before the project is touched. Skip if it's already embedded.
+            if (embedSdk && !sdkEmbedService.IsEmbedded(projectPath))
+            {
+                sdkStaging = sdkEmbedService.StageClone(newFetch, toVersion);
+            }
 
             if (fromVersion is not null)
             {
@@ -179,21 +217,23 @@ public class ProjectService(
         }
         finally
         {
-            TryDeleteDirectory(newFetch);
-            if (oldFetch is not null) TryDeleteDirectory(oldFetch);
+            DeleteDirectory(newFetch);
+            if (oldFetch is not null) DeleteDirectory(oldFetch);
         }
 
         DeleteSdkCopiedFiles(projectPath);
         ClearRegeneratedCaches(projectPath);
-        
+
+        if (embedSdk) sdkEmbedService.Commit(projectPath, sdkStaging);
+
         promptService.Alert(ApplyAlert);
     }
 
     // Records the manager's local metadata (name + version) in project.info, then drops the
     // template's remote version stamp - locally project.info is the source of truth for the version.
-    private void StampProject(string projectPath, string name, TemplateVersion version)
+    private void StampProject(string projectPath, string name, TemplateVersion version, bool embedSdk)
     {
-        projectInfoService.Write(projectPath, new ProjectInfo { Name = name, Version = version.Raw });
+        projectInfoService.Write(projectPath, new ProjectInfo { Name = name, Version = version.Raw, EmbedSdk = embedSdk });
 
         var templateStamp = fileSystem.Path.Combine(projectPath, TemplateVersionService.VersionFileName);
         if (fileSystem.File.Exists(templateStamp)) fileSystem.File.Delete(templateStamp);
@@ -292,48 +332,96 @@ public class ProjectService(
         }
     }
 
+    private const int MaxDeleteAttempts = 3;
+    private const int DeleteRetryDelayMs = 250;
+
     // Unity/ThunderKit regenerate these on next open - stale copies break a version bump. Dropping
     // packages-lock.json forces the package manager to re-resolve every dependency against the
     // freshly applied manifest instead of reusing pinned versions from before the upgrade.
+    //
+    // The deletes are resilient and non-fatal: if the editor (or an IDE) is holding Library open, the
+    // ingest/upgrade still finishes and the user is told what could not be cleared, rather than the
+    // whole operation aborting half-done.
     private void ClearRegeneratedCaches(string projectPath)
     {
-        DeleteDirectory(fileSystem.Path.Combine(projectPath, "Library"));
-        DeleteDirectory(fileSystem.Path.Combine(projectPath, "Packages", "KSP2_x64"));
+        var failed = new List<string>();
+        if (!DeleteDirectory(fileSystem.Path.Combine(projectPath, "Library"))) failed.Add("Library");
+        if (!DeleteDirectory(fileSystem.Path.Combine(projectPath, "Packages", "KSP2_x64"))) failed.Add("Packages/KSP2_x64");
 
         var packagesLock = fileSystem.Path.Combine(projectPath, "Packages", "packages-lock.json");
-        if (fileSystem.File.Exists(packagesLock)) fileSystem.File.Delete(packagesLock);
+        if (fileSystem.File.Exists(packagesLock) && !TryDeleteFile(packagesLock)) failed.Add("Packages/packages-lock.json");
 
-        logService.Debug($"Cleared regenerated caches (Library, Packages/KSP2_x64, packages-lock.json) for '{projectPath}'.");
+        logService.Debug($"Cleared regenerated caches for '{projectPath}' ({failed.Count} could not be removed).");
+
+        if (failed.Count > 0)
+        {
+            promptService.Alert(
+                $"Some regenerated files could not be removed ({string.Join(", ", failed)}). Close Unity and any editor open on this project, then delete them by hand or run this again.");
+        }
     }
 
-    // Clears read-only attributes before deleting: git marks its pack files (.idx/.pack) read-only
-    // on Windows, which would otherwise make a recursive delete throw UnauthorizedAccessException.
-    private void DeleteDirectory(string dir)
+    // Resilient recursive delete: clears read-only files, retries a few times through transient locks
+    // (antivirus, Explorer, a running editor), and never throws. Returns false when the directory
+    // still could not be removed so the caller can report it.
+    private bool DeleteDirectory(string dir)
     {
-        if (!fileSystem.Directory.Exists(dir)) return;
+        if (!fileSystem.Directory.Exists(dir)) return true;
 
-        foreach (var file in fileSystem.Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+        for (var attempt = 1; attempt <= MaxDeleteAttempts; attempt++)
         {
-            var attributes = fileSystem.File.GetAttributes(file);
-            if ((attributes & FileAttributes.ReadOnly) != 0)
+            try
             {
-                fileSystem.File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+                ClearReadOnlyAttributes(dir);
+                fileSystem.Directory.Delete(dir, recursive: true);
+                return true;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                if (attempt == MaxDeleteAttempts)
+                {
+                    logService.Warn($"Could not delete '{dir}' after {MaxDeleteAttempts} attempts: {e.Message}");
+                    return false;
+                }
+                Thread.Sleep(DeleteRetryDelayMs);
             }
         }
 
-        fileSystem.Directory.Delete(dir, recursive: true);
+        return false;
     }
 
-    // Best-effort cleanup of a scratch dir - a leftover temp clone must never abort the operation.
-    private void TryDeleteDirectory(string dir)
+    private bool TryDeleteFile(string path)
     {
         try
         {
-            DeleteDirectory(dir);
+            fileSystem.File.Delete(path);
+            return true;
         }
-        catch (Exception)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            logService.Warn($"Cleanup of temporary directory {dir} failed.");
+            logService.Warn($"Could not delete '{path}': {e.Message}");
+            return false;
+        }
+    }
+
+    // Clears read-only attributes before deleting: git marks its pack files (.idx/.pack) read-only on
+    // Windows, which would otherwise make a recursive delete throw. Best-effort - a locked file here
+    // must not abort the delete attempt.
+    private void ClearReadOnlyAttributes(string dir)
+    {
+        try
+        {
+            foreach (var file in fileSystem.Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                var attributes = fileSystem.File.GetAttributes(file);
+                if ((attributes & FileAttributes.ReadOnly) != 0)
+                {
+                    fileSystem.File.SetAttributes(file, attributes & ~FileAttributes.ReadOnly);
+                }
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            logService.Debug($"Could not clear read-only attributes under '{dir}': {e.Message}");
         }
     }
 

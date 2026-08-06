@@ -34,6 +34,9 @@ public sealed class CreateOptions : ProjectVersionOptions
 {
     [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
     public string? Name { get; set; }
+
+    [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
+    public bool EmbedSdk { get; set; }
 }
 
 [Verb("ingest", HelpText = "Adopt an existing pre-manager project and bring it to a template version.")]
@@ -41,13 +44,24 @@ public sealed class IngestOptions : ProjectVersionOptions
 {
     [Option("name", Required = false, HelpText = "Project name to record in project.info (defaults to the directory name).")]
     public string? Name { get; set; }
+
+    [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
+    public bool EmbedSdk { get; set; }
 }
 
 [Verb("upgrade", HelpText = "Upgrade a managed project to a template version.")]
-public sealed class UpgradeOptions : ProjectVersionOptions;
+public sealed class UpgradeOptions : ProjectVersionOptions
+{
+    [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
+    public bool EmbedSdk { get; set; }
+}
 
 [Verb("import", HelpText = "Register an already-managed project (has template.version) with the manager, unchanged.")]
-public sealed class ImportOptions : ProjectPathOptions;
+public sealed class ImportOptions : ProjectPathOptions
+{
+    [Option("embed-sdk", Required = false, HelpText = "Embed the SDK package into Packages as a git checkout for SDK development.")]
+    public bool EmbedSdk { get; set; }
+}
 
 [Verb("detect", HelpText = "Report the template version a project is stamped with.")]
 public sealed class DetectOptions : ProjectPathOptions;

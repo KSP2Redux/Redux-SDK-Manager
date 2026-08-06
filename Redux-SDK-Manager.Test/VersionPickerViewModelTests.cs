@@ -53,14 +53,29 @@ public class VersionPickerViewModelTests
     }
 
     [Test]
-    public async Task Confirm_ReturnsSelectedRawVersion()
+    public async Task Confirm_ReturnsSelectedVersion_NoEmbedByDefault()
     {
         var vm = Picker("26w32a", "26w32b");
         vm.SelectCommand.Execute(vm.Groups[0].Versions.Last()); // 26w32a
 
         vm.ConfirmCommand.Execute(null);
 
-        Assert.That(await vm.Completion, Is.EqualTo("26w32a"));
+        var choice = await vm.Completion;
+        Assert.That(choice!.Version, Is.EqualTo("26w32a"));
+        Assert.That(choice.EmbedSdk, Is.False);
+    }
+
+    [Test]
+    public async Task Confirm_CarriesEmbedChoice()
+    {
+        var vm = Picker("26w32a");
+        vm.SelectCommand.Execute(vm.Groups[0].Versions[0]);
+        vm.EmbedSdk = true;
+
+        vm.ConfirmCommand.Execute(null);
+
+        var choice = await vm.Completion;
+        Assert.That(choice!.EmbedSdk, Is.True);
     }
 
     [Test]

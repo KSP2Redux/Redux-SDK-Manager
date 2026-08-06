@@ -29,10 +29,13 @@ public sealed partial class VersionGroupViewModel(string channel, IReadOnlyList<
     private bool _isExpanded = true;
 }
 
+/// <summary>The version chosen from the picker, plus whether to embed the SDK for development.</summary>
+public sealed record VersionChoice(string Version, bool EmbedSdk);
+
 /// <summary>
 /// The version picker: a filter box over a list grouped by channel (newest first), so it stays usable
 /// with many versions. Rows are selected directly (single click across sections). <see cref="Completion"/>
-/// yields the chosen version's raw string, or null on cancel.
+/// yields the chosen version (and embed choice), or null on cancel.
 /// </summary>
 public partial class VersionPickerViewModel : ViewModelBase
 {
@@ -40,14 +43,16 @@ public partial class VersionPickerViewModel : ViewModelBase
     private static readonly TemplateChannel[] ChannelOrder =
         [TemplateChannel.Release, TemplateChannel.Snapshot, TemplateChannel.Unknown];
 
-    private readonly TaskCompletionSource<string?> _completion = new();
+    private readonly TaskCompletionSource<VersionChoice?> _completion = new();
     private readonly IReadOnlyList<TemplateVersion> _all;
     private readonly List<VersionItemViewModel> _shownItems = [];
 
-    public VersionPickerViewModel(string title, string message, IReadOnlyList<TemplateVersion> versions)
+    public VersionPickerViewModel(
+        string title, string message, IReadOnlyList<TemplateVersion> versions, bool showEmbedOption = false)
     {
         Title = title;
         Message = message;
+        ShowEmbedOption = showEmbedOption;
         _all = versions;
 
         Rebuild();
@@ -59,6 +64,9 @@ public partial class VersionPickerViewModel : ViewModelBase
     public string Title { get; }
     public string Message { get; }
 
+    /// <summary>Whether the "embed the SDK for development" checkbox is offered (SDK development mode).</summary>
+    public bool ShowEmbedOption { get; }
+
     public ObservableCollection<VersionGroupViewModel> Groups { get; } = [];
 
     [ObservableProperty]
@@ -67,7 +75,10 @@ public partial class VersionPickerViewModel : ViewModelBase
     [ObservableProperty]
     private TemplateVersion? _selectedVersion;
 
-    public Task<string?> Completion => _completion.Task;
+    [ObservableProperty]
+    private bool _embedSdk;
+
+    public Task<VersionChoice?> Completion => _completion.Task;
 
     partial void OnFilterChanged(string value) => Rebuild();
 
@@ -114,7 +125,8 @@ public partial class VersionPickerViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private void Confirm() => _completion.TrySetResult(SelectedVersion?.Raw);
+    private void Confirm() => _completion.TrySetResult(
+        SelectedVersion is null ? null : new VersionChoice(SelectedVersion.Raw, EmbedSdk));
 
     [RelayCommand]
     private void Cancel() => _completion.TrySetResult(null);

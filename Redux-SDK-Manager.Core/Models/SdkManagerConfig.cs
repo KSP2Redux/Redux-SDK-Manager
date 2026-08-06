@@ -27,4 +27,10 @@ public class SdkManagerConfig
     /// Off by default so most users only see stable releases.
     /// </summary>
     public bool ShowSnapshotVersions { get; set; } = false;
+
+    /// <summary>
+    /// Whether the "embed the SDK package for development" option is offered when creating, adding, or
+    /// upgrading a project. Off by default; only SDK developers need it.
+    /// </summary>
+    public bool EnableSdkEmbedding { get; set; } = false;
 }

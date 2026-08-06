@@ -61,8 +61,8 @@ public class ProjectsViewModelTests
     private static Mock<IDialogService> DialogSelecting(string version)
     {
         var dialog = new Mock<IDialogService>();
-        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>()))
-            .ReturnsAsync(version);
+        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()))
+            .ReturnsAsync(new VersionChoice(version, false));
         return dialog;
     }
 
@@ -156,7 +156,7 @@ public class ProjectsViewModelTests
             picker: picker.Object, dialog: DialogSelecting("26w32b").Object, project: project.Object);
         await vm.CreateProjectCommand.ExecuteAsync(null);
 
-        project.Verify(p => p.CreateProject(It.Is<TemplateVersion>(v => v.Raw == "26w32b"), @"C:\new\Mod"), Times.Once);
+        project.Verify(p => p.CreateProject(It.Is<TemplateVersion>(v => v.Raw == "26w32b"), @"C:\new\Mod", It.IsAny<bool>()), Times.Once);
     }
 
     [Test]
@@ -174,7 +174,7 @@ public class ProjectsViewModelTests
         await vm.CreateProjectCommand.ExecuteAsync(null);
 
         dialog.Verify(d => d.OfferLinkAsync("Git required", It.IsAny<string>(), "Install Git", It.IsAny<string>()), Times.Once);
-        project.Verify(p => p.CreateProject(It.IsAny<TemplateVersion>(), It.IsAny<string>()), Times.Never);
+        project.Verify(p => p.CreateProject(It.IsAny<TemplateVersion>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Test]
@@ -210,9 +210,9 @@ public class ProjectsViewModelTests
             dialog: dialog.Object, project: project.Object);
         await vm.AddProjectCommand.ExecuteAsync(null);
 
-        project.Verify(p => p.ImportProject(managed), Times.Once);
-        project.Verify(p => p.IngestProject(It.IsAny<string>(), It.IsAny<TemplateVersion>()), Times.Never);
-        dialog.Verify(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>()), Times.Never);
+        project.Verify(p => p.ImportProject(managed, It.IsAny<bool>()), Times.Once);
+        project.Verify(p => p.IngestProject(It.IsAny<string>(), It.IsAny<TemplateVersion>(), It.IsAny<bool>()), Times.Never);
+        dialog.Verify(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Test]
@@ -232,8 +232,8 @@ public class ProjectsViewModelTests
             dialog: DialogSelecting("26w32b").Object, project: project.Object);
         await vm.AddProjectCommand.ExecuteAsync(null);
 
-        project.Verify(p => p.IngestProject(unmanaged, It.Is<TemplateVersion>(v => v.Raw == "26w32b")), Times.Once);
-        project.Verify(p => p.ImportProject(It.IsAny<string>()), Times.Never);
+        project.Verify(p => p.IngestProject(unmanaged, It.Is<TemplateVersion>(v => v.Raw == "26w32b"), It.IsAny<bool>()), Times.Once);
+        project.Verify(p => p.ImportProject(It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Test]
@@ -245,9 +245,9 @@ public class ProjectsViewModelTests
 
         IReadOnlyList<TemplateVersion>? offered = null;
         var dialog = new Mock<IDialogService>();
-        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>()))
-            .Callback<string, string, IReadOnlyList<TemplateVersion>>((_, _, v) => offered = v)
-            .ReturnsAsync("0.2.10.0");
+        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()))
+            .Callback<string, string, IReadOnlyList<TemplateVersion>, bool>((_, _, v, _) => offered = v)
+            .ReturnsAsync(new VersionChoice("0.2.10.0", false));
 
         var vm = NewVm(configMock.Object, git: GitAvailable().Object,
             catalog: CatalogWith("0.2.10.0", "26w32a", "26w32b").Object, picker: picker.Object, dialog: dialog.Object);
@@ -267,9 +267,9 @@ public class ProjectsViewModelTests
 
         IReadOnlyList<TemplateVersion>? offered = null;
         var dialog = new Mock<IDialogService>();
-        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>()))
-            .Callback<string, string, IReadOnlyList<TemplateVersion>>((_, _, v) => offered = v)
-            .ReturnsAsync("26w32b");
+        dialog.Setup(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()))
+            .Callback<string, string, IReadOnlyList<TemplateVersion>, bool>((_, _, v, _) => offered = v)
+            .ReturnsAsync(new VersionChoice("26w32b", false));
 
         var vm = NewVm(configMock.Object, git: GitAvailable().Object,
             catalog: CatalogWith("0.2.10.0", "26w32a", "26w32b").Object, picker: picker.Object, dialog: dialog.Object);
@@ -295,8 +295,8 @@ public class ProjectsViewModelTests
         await vm.CreateProjectCommand.ExecuteAsync(null);
 
         dialog.Verify(d => d.AlertAsync("No versions", It.IsAny<string>()), Times.Once);
-        dialog.Verify(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>()), Times.Never);
-        project.Verify(p => p.CreateProject(It.IsAny<TemplateVersion>(), It.IsAny<string>()), Times.Never);
+        dialog.Verify(d => d.SelectVersionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<IReadOnlyList<TemplateVersion>>(), It.IsAny<bool>()), Times.Never);
+        project.Verify(p => p.CreateProject(It.IsAny<TemplateVersion>(), It.IsAny<string>(), It.IsAny<bool>()), Times.Never);
     }
 
     [Test]
@@ -310,6 +310,6 @@ public class ProjectsViewModelTests
             dialog: DialogSelecting("26w32b").Object, project: project.Object);
         await vm.UpgradeCommand.ExecuteAsync(vm.Projects[0]);
 
-        project.Verify(p => p.UpgradeProject(PathA, It.Is<TemplateVersion>(v => v.Raw == "26w32b")), Times.Once);
+        project.Verify(p => p.UpgradeProject(PathA, It.Is<TemplateVersion>(v => v.Raw == "26w32b"), It.IsAny<bool>()), Times.Once);
     }
 }

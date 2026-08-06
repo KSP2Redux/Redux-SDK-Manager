@@ -34,12 +34,19 @@ public partial class SettingsViewModel : ViewModelBase
         _log = log;
 
         _suppressSave = true;
-        try { ShowSnapshotVersions = _config.Config.ShowSnapshotVersions; }
+        try
+        {
+            ShowSnapshotVersions = _config.Config.ShowSnapshotVersions;
+            EnableSdkEmbedding = _config.Config.EnableSdkEmbedding;
+        }
         finally { _suppressSave = false; }
     }
 
     [ObservableProperty]
     private bool _showSnapshotVersions;
+
+    [ObservableProperty]
+    private bool _enableSdkEmbedding;
 
     [ObservableProperty]
     private bool _isCheckingForUpdates;
@@ -53,6 +60,14 @@ public partial class SettingsViewModel : ViewModelBase
         _config.Config.ShowSnapshotVersions = value;
         _config.Save();
         _log.Info($"Show snapshot versions set to {value}.");
+    }
+
+    partial void OnEnableSdkEmbeddingChanged(bool value)
+    {
+        if (_suppressSave) return;
+        _config.Config.EnableSdkEmbedding = value;
+        _config.Save();
+        _log.Info($"SDK embedding option set to {value}.");
     }
 
     [RelayCommand]

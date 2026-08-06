@@ -23,8 +23,12 @@ public interface IDialogService
     /// <summary>Asks for a line of text. Returns null when the user cancels.</summary>
     Task<string?> AskAsync(string title, string message, string defaultValue);
 
-    /// <summary>Shows the grouped, filterable version picker. Returns the chosen version's raw string, or null.</summary>
-    Task<string?> SelectVersionAsync(string title, string message, IReadOnlyList<TemplateVersion> versions);
+    /// <summary>
+    /// Shows the grouped, filterable version picker. When <paramref name="showEmbedOption"/> is set it
+    /// also offers the "embed the SDK for development" checkbox. Returns the choice, or null on cancel.
+    /// </summary>
+    Task<VersionChoice?> SelectVersionAsync(
+        string title, string message, IReadOnlyList<TemplateVersion> versions, bool showEmbedOption = false);
 
     /// <summary>
     /// Prompts with an action button that opens <paramref name="url"/> in the browser (e.g. a
@@ -79,9 +83,10 @@ public partial class DialogService(IProcessRunner processRunner) : ObservableObj
         return result.Confirmed ? result.Text : null;
     }
 
-    public async Task<string?> SelectVersionAsync(string title, string message, IReadOnlyList<TemplateVersion> versions)
+    public async Task<VersionChoice?> SelectVersionAsync(
+        string title, string message, IReadOnlyList<TemplateVersion> versions, bool showEmbedOption = false)
     {
-        var picker = new VersionPickerViewModel(title, message, versions);
+        var picker = new VersionPickerViewModel(title, message, versions, showEmbedOption);
         return await ShowAsync(picker, picker.Completion);
     }
 

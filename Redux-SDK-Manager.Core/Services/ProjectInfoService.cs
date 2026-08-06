@@ -31,6 +31,7 @@ public class ProjectInfoService(IFileSystem fileSystem, ILogService logService) 
             {
                 Name = table.TryGetValue("name", out var name) ? name?.ToString() ?? "" : "",
                 Version = table.TryGetValue("version", out var version) ? version?.ToString() : null,
+                EmbedSdk = table.TryGetValue("embed_sdk", out var embed) && embed is true,
             };
         }
         catch (Exception e)
@@ -48,6 +49,7 @@ public class ProjectInfoService(IFileSystem fileSystem, ILogService logService) 
         // characters round-trips cleanly.
         var table = new TomlTable { ["name"] = info.Name };
         if (!string.IsNullOrEmpty(info.Version)) table["version"] = info.Version;
+        if (info.EmbedSdk) table["embed_sdk"] = true;
 
         var path = fileSystem.Path.Combine(projectPath, FileName);
         fileSystem.File.WriteAllText(path, Toml.FromModel(table));

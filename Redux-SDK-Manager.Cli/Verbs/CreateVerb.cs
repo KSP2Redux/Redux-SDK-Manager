@@ -21,7 +21,7 @@ public static class CreateVerb
         context.Output.Progress($"Creating project at {options.Path} from {options.Version}...");
         try
         {
-            context.Get<IProjectService>().CreateProject(TemplateVersion.Parse(options.Version!), options.Path!);
+            context.Get<IProjectService>().CreateProject(TemplateVersion.Parse(options.Version!), options.Path!, options.EmbedSdk);
         }
         catch (Exception e)
         {

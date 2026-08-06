@@ -26,6 +26,21 @@
                                TextWrapping="Wrap" Margin="28,0,0,0" />
                 </StackPanel>
             </Border>
+
+            <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
+                    BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusMedium}" Padding="14,12">
+                <StackPanel Spacing="4">
+                    <CheckBox IsChecked="{Binding EnableSdkEmbedding, Mode=TwoWay}"
+                              Content="SDK development mode"
+                              Foreground="{StaticResource TextPrimaryBrush}"
+                              FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="14" />
+                    <TextBlock Text="Sho an option to embed the SDK package into Packages as a git checkout when creating, adding, or upgrading a project. For SDK developers. Off by default."
+                               Foreground="{StaticResource TextFaintBrush}"
+                               FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="11"
+                               TextWrapping="Wrap" Margin="28,0,0,0" />
+                </StackPanel>
+            </Border>
         </StackPanel>
 
         <!-- Footer: utilities + version -->

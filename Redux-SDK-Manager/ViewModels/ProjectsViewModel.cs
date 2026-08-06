@@ -144,14 +144,14 @@ public partial class ProjectsViewModel : ViewModelBase
     {
         if (IsBusy || !await RequireGitAsync()) return;
 
-        var version = await PickVersionAsync();
-        if (version is null) return;
+        var choice = await PickVersionAsync();
+        if (choice is null) return;
 
         var target = await _picker.PickFolderAsync("Choose an empty folder for the new project");
         if (string.IsNullOrEmpty(target)) return;
 
         await RunProjectOperationAsync("Create failed",
-            () => _projectService.CreateProject(TemplateVersion.Parse(version), target));
+            () => _projectService.CreateProject(TemplateVersion.Parse(choice.Version), target, choice.EmbedSdk));
     }
 
     [RelayCommand]
@@ -166,17 +166,19 @@ public partial class ProjectsViewModel : ViewModelBase
         // An unmanaged one is adopted (ingested) at a chosen version, which needs git.
         if (_versionService.DetectProjectVersion(target) is not null)
         {
-            await RunProjectOperationAsync("Import failed", () => _projectService.ImportProject(target));
+            // Import has no version picker, so ask about embedding separately (only in SDK dev mode).
+            var embed = await ConfirmEmbedSdkAsync();
+            await RunProjectOperationAsync("Import failed", () => _projectService.ImportProject(target, embed));
             return;
         }
 
         if (!await RequireGitAsync()) return;
 
-        var version = await PickVersionAsync();
-        if (version is null) return;
+        var choice = await PickVersionAsync();
+        if (choice is null) return;
 
         await RunProjectOperationAsync("Add failed",
-            () => _projectService.IngestProject(target, TemplateVersion.Parse(version)));
+            () => _projectService.IngestProject(target, TemplateVersion.Parse(choice.Version), choice.EmbedSdk));
     }
 
     [RelayCommand]
@@ -184,16 +186,23 @@ public partial class ProjectsViewModel : ViewModelBase
     {
         if (item is null || IsBusy || !await RequireGitAsync()) return;
 
-        var version = await PickVersionAsync();
-        if (version is null) return;
+        var choice = await PickVersionAsync();
+        if (choice is null) return;
 
         await RunProjectOperationAsync("Upgrade failed",
-            () => _projectService.UpgradeProject(item.Path, TemplateVersion.Parse(version)));
+            () => _projectService.UpgradeProject(item.Path, TemplateVersion.Parse(choice.Version), choice.EmbedSdk));
     }
+
+    // Asks whether to embed the SDK for the import path (which has no version picker). Only prompts
+    // in SDK development mode; otherwise never embeds.
+    private async Task<bool> ConfirmEmbedSdkAsync()
+        => _config.Config.EnableSdkEmbedding
+           && await _dialog.ConfirmAsync("Embed SDK",
+               "Embed the SDK package into Packages for local development?", "Embed", "Skip");
 
     // Fetches the available versions off the UI thread, then shows the picker. Null when cancelled
     // or unavailable.
-    private async Task<string?> PickVersionAsync()
+    private async Task<VersionChoice?> PickVersionAsync()
     {
         IsBusy = true;
         List<TemplateVersion> versions;
@@ -225,7 +234,8 @@ public partial class ProjectsViewModel : ViewModelBase
             return null;
         }
 
-        return await _dialog.SelectVersionAsync("Choose a version", "Template version to use:", versions);
+        return await _dialog.SelectVersionAsync("Choose a version", "Template version to use:", versions,
+            _config.Config.EnableSdkEmbedding);
     }
 
     // Runs a project operation off the UI thread, refreshes the list on success, and reports failures.

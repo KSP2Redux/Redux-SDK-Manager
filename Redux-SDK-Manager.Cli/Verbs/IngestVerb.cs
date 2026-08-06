@@ -21,7 +21,7 @@ public static class IngestVerb
         context.Output.Progress($"Ingesting {options.Path} at {options.Version}...");
         try
         {
-            context.Get<IProjectService>().IngestProject(options.Path!, TemplateVersion.Parse(options.Version!));
+            context.Get<IProjectService>().IngestProject(options.Path!, TemplateVersion.Parse(options.Version!), options.EmbedSdk);
         }
         catch (Exception e)
         {
