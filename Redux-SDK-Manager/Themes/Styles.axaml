@@ -23,6 +23,14 @@
         </Style>
     </Style>
 
+    <Style Selector="Button.success">
+        <Setter Property="Background" Value="{StaticResource SuccessBrush}" />
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+        <Style Selector="^:pointerover">
+            <Setter Property="Background" Value="{StaticResource SuccessHoverBrush}" />
+        </Style>
+    </Style>
+
     <Style Selector="Button.link-button">
         <Setter Property="Background" Value="Transparent" />
         <Setter Property="ToolTip.ShowDelay" Value="0" />

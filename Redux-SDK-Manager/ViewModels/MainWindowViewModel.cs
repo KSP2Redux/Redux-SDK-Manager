@@ -1,5 +1,6 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Redux_SDK_Manager.Services;
 
 namespace Redux_SDK_Manager.ViewModels;
 
@@ -21,11 +22,16 @@ public partial class MainWindowViewModel : ViewModelBase
     public VersionsViewModel Versions { get; }
     public SettingsViewModel Settings { get; }
 
-    public MainWindowViewModel(ProjectsViewModel projects, VersionsViewModel versions, SettingsViewModel settings)
+    /// <summary>The modal dialog host the window overlay binds to.</summary>
+    public IDialogService Dialog { get; }
+
+    public MainWindowViewModel(
+        ProjectsViewModel projects, VersionsViewModel versions, SettingsViewModel settings, IDialogService dialog)
     {
         Projects = projects;
         Versions = versions;
         Settings = settings;
+        Dialog = dialog;
     }
 
     /// <summary>The view model the content host shows for the current tab.</summary>

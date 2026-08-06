@@ -1,0 +1,40 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
+             x:Class="Redux_SDK_Manager.Views.DialogView"
+             x:DataType="vm:DialogViewModel">
+    <UserControl.Styles>
+        <Style Selector="Button.primary">
+            <Setter Property="Background" Value="{StaticResource BrandRedBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+            <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+                <Setter Property="Background" Value="{StaticResource BrandRedHoverBrush}" />
+            </Style>
+        </Style>
+    </UserControl.Styles>
+
+    <Border MaxWidth="460" MinWidth="360"
+            Background="{StaticResource GlassSurfaceColor}"
+            BorderBrush="{StaticResource GlassSurfaceBorderBrush}" BorderThickness="1"
+            CornerRadius="{StaticResource RadiusLarge}"
+            BoxShadow="{StaticResource GlassPanelShadow}"
+            HorizontalAlignment="Center" VerticalAlignment="Center">
+        <StackPanel Margin="22" Spacing="14">
+            <TextBlock Text="{Binding Title}"
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="16" />
+            <TextBlock Text="{Binding Message}"
+                       Foreground="{StaticResource TextMutedBrush}"
+                       TextWrapping="Wrap" FontSize="13" />
+            <TextBox Text="{Binding Input, Mode=TwoWay}"
+                     IsVisible="{Binding ShowInput}"
+                     FontFamily="{StaticResource JetBrainsMonoRegular}" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button Content="{Binding CancelText}" Command="{Binding CancelCommand}"
+                        IsVisible="{Binding ShowCancel}" MinWidth="88" />
+                <Button Content="{Binding ConfirmText}" Command="{Binding ConfirmCommand}"
+                        Classes="primary" MinWidth="88" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</UserControl>

@@ -4,6 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
         xmlns:conv="clr-namespace:Redux_SDK_Manager.Converters"
+        xmlns:ac="using:Avalonia.Data.Converters"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="680"
         x:Class="Redux_SDK_Manager.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
@@ -179,6 +180,13 @@
                             CornerRadius="{StaticResource RadiusLarge}"
                             BoxShadow="{StaticResource GlassPanelShadow}">
                         <ContentControl Content="{Binding CurrentPage}" />
+                    </Border>
+
+                    <!-- Modal dialog overlay (confirm / alert / text prompt) -->
+                    <Border Grid.RowSpan="3"
+                            IsVisible="{Binding Dialog.Current, Converter={x:Static ac:ObjectConverters.IsNotNull}}"
+                            Background="{StaticResource ScrimMediumBrush}">
+                        <ContentControl Content="{Binding Dialog.Current}" />
                     </Border>
                 </Grid>
             </Border>

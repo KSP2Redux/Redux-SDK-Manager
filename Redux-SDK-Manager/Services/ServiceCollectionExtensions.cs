@@ -15,6 +15,11 @@ public static class ServiceCollectionExtensions
     {
         services.AddReduxSdkManagerCore();
 
+        // UI services. DialogPromptService overrides Core's non-interactive DefaultPromptService so
+        // Confirm/Alert/Ask become modal dialogs.
+        services.AddSingleton<IDialogService, DialogService>();
+        services.AddSingleton<IPromptService, DialogPromptService>();
+
         // ViewModels
         services.AddTransient<MainWindowViewModel>();
         services.AddTransient<ProjectsViewModel>();

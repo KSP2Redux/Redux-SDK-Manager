@@ -1,11 +1,23 @@
+using Moq;
+using Redux_SDK_Manager.Models;
+using Redux_SDK_Manager.Services;
 using Redux_SDK_Manager.ViewModels;
 
 namespace Redux_SDK_Manager.Test;
 
 public class MainWindowViewModelTests
 {
+    private static ProjectsViewModel NewProjects()
+    {
+        var config = new Mock<IConfigService>();
+        config.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        return new ProjectsViewModel(config.Object, Mock.Of<IProjectInfoService>(),
+            Mock.Of<ITemplateVersionService>(), Mock.Of<IUnityService>(),
+            Mock.Of<IDialogService>(), Mock.Of<ILogService>());
+    }
+
     private static MainWindowViewModel NewViewModel()
-        => new(new ProjectsViewModel(), new VersionsViewModel(), new SettingsViewModel());
+        => new(NewProjects(), new VersionsViewModel(), new SettingsViewModel(), Mock.Of<IDialogService>());
 
     [Test]
     public void CurrentTab_DefaultsToProjects()
