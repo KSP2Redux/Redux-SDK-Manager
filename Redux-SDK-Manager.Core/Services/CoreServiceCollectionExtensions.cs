@@ -23,6 +23,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IProjectInfoService, ProjectInfoService>();
         services.AddSingleton<ITemplateVersionService, TemplateVersionService>();
         services.AddSingleton<IGitService, GitService>();
+        services.AddSingleton<ITemplateRepositoryCache, TemplateRepositoryCache>();
         services.AddSingleton<ITemplateCatalogService, TemplateCatalogService>();
         services.AddSingleton<IProjectService, ProjectService>();
         services.AddSingleton<IUnityService, UnityService>();

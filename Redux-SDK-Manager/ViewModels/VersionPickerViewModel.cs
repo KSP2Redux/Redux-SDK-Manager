@@ -40,9 +40,6 @@ public partial class VersionPickerViewModel : ViewModelBase
     private static readonly TemplateChannel[] ChannelOrder =
         [TemplateChannel.Release, TemplateChannel.Snapshot, TemplateChannel.Unknown];
 
-    private static readonly IComparer<TemplateVersion> NewestFirst =
-        Comparer<TemplateVersion>.Create((a, b) => Compare(b, a));
-
     private readonly TaskCompletionSource<string?> _completion = new();
     private readonly IReadOnlyList<TemplateVersion> _all;
     private readonly List<VersionItemViewModel> _shownItems = [];
@@ -85,7 +82,7 @@ public partial class VersionPickerViewModel : ViewModelBase
         foreach (var channel in ChannelOrder)
         {
             var items = query.Where(v => v.Channel == channel)
-                .OrderBy(v => v, NewestFirst)
+                .OrderBy(v => v, TemplateVersion.NewestFirst)
                 .Select(v => new VersionItemViewModel(v))
                 .ToList();
             if (items.Count == 0) continue;
@@ -121,26 +118,4 @@ public partial class VersionPickerViewModel : ViewModelBase
 
     [RelayCommand]
     private void Cancel() => _completion.TrySetResult(null);
-
-    // Ascending compare (older first). Releases compare numerically; the fixed-width snapshot stamp
-    // (26w32a) sorts correctly as an ordinal string.
-    private static int Compare(TemplateVersion a, TemplateVersion b)
-        => a.Channel == TemplateChannel.Release && b.Channel == TemplateChannel.Release
-            ? CompareRelease(a.Raw, b.Raw)
-            : string.CompareOrdinal(a.Raw, b.Raw);
-
-    private static int CompareRelease(string a, string b)
-    {
-        var pa = a.Split('.').Select(ToInt).ToArray();
-        var pb = b.Split('.').Select(ToInt).ToArray();
-        for (var i = 0; i < Math.Max(pa.Length, pb.Length); i++)
-        {
-            var x = i < pa.Length ? pa[i] : 0;
-            var y = i < pb.Length ? pb[i] : 0;
-            if (x != y) return x.CompareTo(y);
-        }
-        return 0;
-
-        static int ToInt(string s) => int.TryParse(s, out var n) ? n : 0;
-    }
 }

@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
 using Moq;
 using Redux_SDK_Manager.Models;
 using Redux_SDK_Manager.Services;
@@ -26,8 +28,20 @@ public class MainWindowViewModelTests
             Mock.Of<IDialogService>(), Mock.Of<ILogService>());
     }
 
-    private static MainWindowViewModel NewViewModel()
-        => new(NewProjects(), new VersionsViewModel(), NewSettings(), Mock.Of<IDialogService>());
+    private static VersionsViewModel NewVersions(Mock<ITemplateCatalogService>? catalog = null)
+    {
+        var config = new Mock<IConfigService>();
+        config.Setup(c => c.Config).Returns(new SdkManagerConfig());
+        catalog ??= new Mock<ITemplateCatalogService>();
+        catalog.Setup(c => c.DescribeVersions()).Returns(new List<TemplateVersionInfo>());
+        var unity = new Mock<IUnityService>();
+        unity.Setup(u => u.DetectInstalls()).Returns(new List<UnityInstall>());
+        return new VersionsViewModel(config.Object, catalog.Object,
+            unity.Object, Mock.Of<IDialogService>(), Mock.Of<ILogService>());
+    }
+
+    private static MainWindowViewModel NewViewModel(VersionsViewModel? versions = null)
+        => new(NewProjects(), versions ?? NewVersions(), NewSettings(), Mock.Of<IDialogService>());
 
     [Test]
     public void CurrentTab_DefaultsToProjects()
@@ -59,6 +73,19 @@ public class MainWindowViewModelTests
             Assert.That(vm.CurrentTab, Is.EqualTo(MainWindowViewModel.SettingsTabId));
             Assert.That(vm.CurrentPage, Is.SameAs(vm.Settings));
         });
+    }
+
+    [Test]
+    public async Task SwitchingToVersionsTab_RefreshesTheCatalog()
+    {
+        var catalog = new Mock<ITemplateCatalogService>();
+        var versions = NewVersions(catalog);
+        var vm = NewViewModel(versions);
+
+        vm.GoToTabCommand.Execute("1"); // Versions
+        await versions.RefreshCommand.ExecutionTask!;
+
+        catalog.Verify(c => c.DescribeVersions(), Times.Once);
     }
 
     [Test]

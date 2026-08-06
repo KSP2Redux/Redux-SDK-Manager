@@ -18,6 +18,14 @@ public partial class MainWindowViewModel : ViewModelBase
     [NotifyPropertyChangedFor(nameof(CurrentPage))]
     private int _currentTab = ProjectsTabId;
 
+    // Refresh the versions catalog each time its tab is opened, so installed-editor status and any
+    // newly released template versions are current. Fire-and-forget: the command runs off the UI
+    // thread behind its own busy scrim.
+    partial void OnCurrentTabChanged(int value)
+    {
+        if (value == VersionsTabId) Versions.RefreshCommand.Execute(null);
+    }
+
     public ProjectsViewModel Projects { get; }
     public VersionsViewModel Versions { get; }
     public SettingsViewModel Settings { get; }

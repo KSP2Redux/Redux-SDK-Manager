@@ -99,4 +99,83 @@ public class GitServiceTest
         Assert.That(() => git.Clone("https://example/repo.git", "26w32a", @"C:\dest"),
             Throws.TypeOf<InvalidOperationException>());
     }
+
+    [Test]
+    public void CloneMirror_InvokesFullCloneWithoutBranchOrDepth()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>()))
+            .Returns(new ProcessResult(0, "", ""));
+
+        new GitService(runner.Object).CloneMirror("https://example/repo.git", @"C:\mirror");
+
+        runner.Verify(r => r.Run("git",
+            It.Is<IReadOnlyList<string>>(a =>
+                a.Contains("clone") && !a.Contains("--depth") && !a.Contains("--branch") &&
+                a.Contains("https://example/repo.git") && a.Contains(@"C:\mirror")),
+            It.IsAny<string?>()), Times.Once);
+    }
+
+    [Test]
+    public void Fetch_RunsFetchInRepoWorkingDirectory()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git", It.IsAny<IReadOnlyList<string>>(), @"C:\mirror"))
+            .Returns(new ProcessResult(0, "", ""));
+
+        new GitService(runner.Object).Fetch(@"C:\mirror");
+
+        runner.Verify(r => r.Run("git",
+            It.Is<IReadOnlyList<string>>(a => a.Contains("fetch") && a.Contains("--tags") && a.Contains("--prune")),
+            @"C:\mirror"), Times.Once);
+    }
+
+    [Test]
+    public void Fetch_Throws_WhenExitNonZero()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>()))
+            .Returns(new ProcessResult(1, "", "network down"));
+
+        Assert.That(() => new GitService(runner.Object).Fetch(@"C:\mirror"),
+            Throws.TypeOf<InvalidOperationException>());
+    }
+
+    [Test]
+    public void ListTags_SplitsLocalTagOutput()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git", It.Is<IReadOnlyList<string>>(a => a.Contains("tag")), @"C:\mirror"))
+            .Returns(new ProcessResult(0, "0.2.8.5\n26w32a\n26w32b\n", ""));
+
+        var tags = new GitService(runner.Object).ListTags(@"C:\mirror");
+
+        Assert.That(tags, Is.EqualTo(new[] { "0.2.8.5", "26w32a", "26w32b" }));
+    }
+
+    [Test]
+    public void ShowFile_ReturnsContent_OnSuccess()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git",
+                It.Is<IReadOnlyList<string>>(a => a.Contains("show") && a.Contains("26w32a:ProjectSettings/ProjectVersion.txt")),
+                @"C:\mirror"))
+            .Returns(new ProcessResult(0, "m_EditorVersion: 6000.4.1f1\n", ""));
+
+        var content = new GitService(runner.Object).ShowFile(@"C:\mirror", "26w32a", "ProjectSettings/ProjectVersion.txt");
+
+        Assert.That(content, Does.Contain("6000.4.1f1"));
+    }
+
+    [Test]
+    public void ShowFile_ReturnsNull_WhenFileOrRefMissing()
+    {
+        var runner = Runner();
+        runner.Setup(r => r.Run("git", It.IsAny<IReadOnlyList<string>>(), It.IsAny<string?>()))
+            .Returns(new ProcessResult(128, "", "path does not exist"));
+
+        var content = new GitService(runner.Object).ShowFile(@"C:\mirror", "26w32a", "ProjectSettings/ProjectVersion.txt");
+
+        Assert.That(content, Is.Null);
+    }
 }

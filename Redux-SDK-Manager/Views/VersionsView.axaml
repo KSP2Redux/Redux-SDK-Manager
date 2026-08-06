@@ -3,10 +3,77 @@
              xmlns:vm="clr-namespace:Redux_SDK_Manager.ViewModels"
              x:Class="Redux_SDK_Manager.Views.VersionsView"
              x:DataType="vm:VersionsViewModel">
-    <TextBlock Text="Versions"
-               Foreground="{StaticResource TextFaintBrush}"
-               FontFamily="{StaticResource JetBrainsMonoLight}"
-               FontSize="28"
-               HorizontalAlignment="Center"
-               VerticalAlignment="Center" />
+    <Panel>
+        <Grid RowDefinitions="Auto,*" Margin="18">
+            <!-- Header -->
+            <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,14">
+                <TextBlock Grid.Column="0" Text="Versions"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="18"
+                           VerticalAlignment="Center" />
+                <Button Grid.Column="1" Content="Refresh" Command="{Binding RefreshCommand}" />
+            </Grid>
+
+            <!-- Empty state -->
+            <TextBlock Grid.Row="1" IsVisible="{Binding !HasVersions}"
+                       Text="No template versions to show."
+                       Foreground="{StaticResource TextFaintBrush}"
+                       FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="16"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+
+            <!-- Version list -->
+            <ScrollViewer Grid.Row="1" IsVisible="{Binding HasVersions}">
+                <ItemsControl ItemsSource="{Binding Versions}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate DataType="vm:VersionCatalogItemViewModel">
+                            <Border Background="{StaticResource SurfacePanelTranslucentBrush}"
+                                    BorderBrush="{StaticResource SurfacePanelBorderBrush}" BorderThickness="1"
+                                    CornerRadius="{StaticResource RadiusMedium}"
+                                    Padding="14,12" Margin="0,0,0,10">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <StackPanel Grid.Column="0" Spacing="3" VerticalAlignment="Center">
+                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                            <TextBlock Text="{Binding Raw}"
+                                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                                       FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="14" />
+                                            <TextBlock Text="{Binding Channel}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                        <TextBlock Text="{Binding UnityVersionLabel}"
+                                                   Foreground="{StaticResource TextSecondaryBrush}" FontSize="12" />
+                                    </StackPanel>
+
+                                    <!-- Installed status -->
+                                    <TextBlock Grid.Column="1" Text="{Binding InstalledLabel}"
+                                               VerticalAlignment="Center" Margin="0,0,12,0"
+                                               FontFamily="{StaticResource JetBrainsMonoBold}" FontSize="12"
+                                               Foreground="{StaticResource SuccessBrush}"
+                                               IsVisible="{Binding IsInstalled}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding InstalledLabel}"
+                                               VerticalAlignment="Center" Margin="0,0,12,0"
+                                               FontFamily="{StaticResource JetBrainsMonoRegular}" FontSize="12"
+                                               Foreground="{StaticResource TextFaintBrush}"
+                                               IsVisible="{Binding !IsInstalled}" />
+
+                                    <Button Grid.Column="2" Content="Install Unity"
+                                            IsVisible="{Binding CanInstall}"
+                                            Command="{Binding $parent[ItemsControl].((vm:VersionsViewModel)DataContext).InstallUnityCommand}"
+                                            CommandParameter="{Binding}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </Grid>
+
+        <!-- Busy scrim -->
+        <Border IsVisible="{Binding IsBusy}" Background="{StaticResource ScrimSoftBrush}">
+            <TextBlock Text="Loading versions..."
+                       Foreground="{StaticResource TextPrimaryBrush}"
+                       FontFamily="{StaticResource JetBrainsMonoLight}" FontSize="20"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" />
+        </Border>
+    </Panel>
 </UserControl>

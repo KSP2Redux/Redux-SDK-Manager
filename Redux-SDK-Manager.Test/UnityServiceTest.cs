@@ -196,4 +196,56 @@ public class UnityServiceTest
 
         Assert.That(NewService(fs, env).OpenProject(@"C:\proj"), Is.EqualTo(OpenProjectResult.VersionUnknown));
     }
+
+    [Test]
+    public void InstallUnityVersion_OpensHubLinkWithChangeset_WhenMissing_AndHubPresent()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+        var runner = new Mock<IProcessRunner>();
+
+        var result = NewService(fs, env, runner.Object).InstallUnityVersion("6000.5.0f1", "88b47c5e7076");
+
+        Assert.That(result, Is.EqualTo(InstallUnityResult.Started));
+        runner.Verify(r => r.OpenUrl("unityhub://6000.5.0f1/88b47c5e7076"), Times.Once);
+    }
+
+    [Test]
+    public void InstallUnityVersion_OpensHubLinkWithoutChangeset_WhenChangesetNull()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+        var runner = new Mock<IProcessRunner>();
+
+        var result = NewService(fs, env, runner.Object).InstallUnityVersion("6000.5.0f1", null);
+
+        Assert.That(result, Is.EqualTo(InstallUnityResult.Started));
+        runner.Verify(r => r.OpenUrl("unityhub://6000.5.0f1"), Times.Once);
+    }
+
+    [Test]
+    public void InstallUnityVersion_ReturnsAlreadyInstalled_WhenPresent()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+        WriteFile(fs, @"C:\Program Files\Unity\Hub\Editor\6000.5.0f1\Editor\Unity.exe", "exe");
+        var runner = new Mock<IProcessRunner>();
+
+        var result = NewService(fs, env, runner.Object).InstallUnityVersion("6000.5.0f1", "88b47c5e7076");
+
+        Assert.That(result, Is.EqualTo(InstallUnityResult.AlreadyInstalled));
+        runner.Verify(r => r.OpenUrl(It.IsAny<string>()), Times.Never);
+    }
+
+    [Test]
+    public void InstallUnityVersion_ReturnsHubUnavailable_WhenMissing_AndNoHub()
+    {
+        var (fs, env) = BuildEnv();
+        var runner = new Mock<IProcessRunner>();
+
+        var result = NewService(fs, env, runner.Object).InstallUnityVersion("6000.5.0f1", "88b47c5e7076");
+
+        Assert.That(result, Is.EqualTo(InstallUnityResult.HubUnavailable));
+        runner.Verify(r => r.OpenUrl(It.IsAny<string>()), Times.Never);
+    }
 }

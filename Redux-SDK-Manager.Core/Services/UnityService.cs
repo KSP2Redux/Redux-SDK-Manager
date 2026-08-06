@@ -28,6 +28,19 @@ public enum OpenProjectResult
     HubUnavailable
 }
 
+/// <summary>Outcome of <see cref="IUnityService.InstallUnityVersion"/>.</summary>
+public enum InstallUnityResult
+{
+    /// <summary>Unity Hub was opened to install the version.</summary>
+    Started,
+
+    /// <summary>The version is already installed, so nothing was done.</summary>
+    AlreadyInstalled,
+
+    /// <summary>Unity Hub isn't installed, so the version cannot be installed.</summary>
+    HubUnavailable
+}
+
 public interface IUnityService
 {
     /// <summary>Unity editors found via Unity Hub's known install locations.</summary>
@@ -47,6 +60,13 @@ public interface IUnityService
     /// so re-run open. See <see cref="OpenProjectResult"/> for the outcomes.
     /// </summary>
     OpenProjectResult OpenProject(string projectPath);
+
+    /// <summary>
+    /// Installs a Unity editor version by opening Unity Hub at its <c>unityhub://</c> install link.
+    /// The changeset (when known) pins the exact version even if it isn't in Hub's release list. Does
+    /// nothing if the version is already installed. See <see cref="InstallUnityResult"/>.
+    /// </summary>
+    InstallUnityResult InstallUnityVersion(string version, string? changeset);
 }
 
 public partial class UnityService(
@@ -139,12 +159,40 @@ public partial class UnityService(
         // Hand off to Hub through its unityhub:// protocol link (Hub has no reliable headless install
         // for a project's exact version+changeset) - the changeset pins a version not in Hub's release
         // list. Opened the Launcher's way - shell-execute so the OS resolves the protocol handler.
+        logService.Info($"Unity {version} not installed - opening Unity Hub to install it.");
+        OpenHubInstall(version, changeset);
+        return OpenProjectResult.InstallStarted;
+    }
+
+    public InstallUnityResult InstallUnityVersion(string version, string? changeset)
+    {
+        var alreadyInstalled = DetectInstalls()
+            .Any(i => string.Equals(i.Version, version, StringComparison.OrdinalIgnoreCase));
+        if (alreadyInstalled)
+        {
+            logService.Info($"Unity {version} is already installed.");
+            return InstallUnityResult.AlreadyInstalled;
+        }
+
+        if (FindUnityHub() is null)
+        {
+            logService.Warn($"Cannot install Unity {version} - Unity Hub is not installed.");
+            return InstallUnityResult.HubUnavailable;
+        }
+
+        logService.Info($"Opening Unity Hub to install Unity {version}.");
+        OpenHubInstall(version, changeset);
+        return InstallUnityResult.Started;
+    }
+
+    // Opens Unity Hub's install link for a version. The changeset, when known, pins the exact build
+    // even if it isn't in Hub's promoted release list.
+    private void OpenHubInstall(string version, string? changeset)
+    {
         var installUri = string.IsNullOrEmpty(changeset)
             ? $"unityhub://{version}"
             : $"unityhub://{version}/{changeset}";
-        logService.Info($"Unity {version} not installed - opening Unity Hub to install it ({installUri}).");
         processRunner.OpenUrl(installUri);
-        return OpenProjectResult.InstallStarted;
     }
 
     private IEnumerable<UnityInstall> EnumerateHubFolderInstalls()
