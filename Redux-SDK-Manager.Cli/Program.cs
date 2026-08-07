@@ -23,7 +23,7 @@ public static class Program
 
         return parser.ParseArguments<
                 VersionsOptions, CreateOptions, IngestOptions, UpgradeOptions, ImportOptions,
-                CloneOptions, DetectOptions, OpenOptions, UnityOptions, ProjectsOptions, DoctorOptions>(args)
+                CloneOptions, SetupOptions, DetectOptions, OpenOptions, UnityOptions, ProjectsOptions, DoctorOptions>(args)
             .MapResult(
                 (VersionsOptions o) => Run(o, VersionsVerb.Run),
                 (CreateOptions o) => Run(o, ctx => CreateVerb.Run(ctx, o)),
@@ -31,6 +31,7 @@ public static class Program
                 (UpgradeOptions o) => Run(o, ctx => UpgradeVerb.Run(ctx, o)),
                 (ImportOptions o) => Run(o, ctx => ImportVerb.Run(ctx, o)),
                 (CloneOptions o) => Run(o, ctx => CloneVerb.Run(ctx, o)),
+                (SetupOptions o) => Run(o, ctx => SetupVerb.Run(ctx, o)),
                 (DetectOptions o) => Run(o, ctx => DetectVerb.Run(ctx, o)),
                 (OpenOptions o) => Run(o, ctx => OpenVerb.Run(ctx, o)),
                 (UnityOptions o) => Run(o, UnityVerb.Run),

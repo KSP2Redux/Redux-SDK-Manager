@@ -19,4 +19,11 @@ public sealed partial class ProjectItemViewModel(string path, string name, strin
     /// <summary>The current setup step, shown on the row while <see cref="IsSettingUp"/>.</summary>
     [ObservableProperty]
     private string _setupStatus = "";
+
+    /// <summary>
+    /// True when the project has not had the game imported yet, so the row offers a "Setup" action to
+    /// run it after the fact. Set false once the import is present.
+    /// </summary>
+    [ObservableProperty]
+    private bool _needsSetup;
 }

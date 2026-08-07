@@ -58,22 +58,23 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8"
                                                 VerticalAlignment="Center">
+                                        <Button Content="Open" Classes="success" IsEnabled="{Binding !IsSettingUp}"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenCommand}"
+                                                CommandParameter="{Binding}" />
                                         <!-- Kept enabled during setup so the log folder is reachable. -->
                                         <Button Content="Folder"
                                                 Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenFolderCommand}"
                                                 CommandParameter="{Binding}" />
-                                        <StackPanel Orientation="Horizontal" Spacing="8"
-                                                    IsEnabled="{Binding !IsSettingUp}">
-                                            <Button Content="Open" Classes="success"
-                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).OpenCommand}"
-                                                    CommandParameter="{Binding}" />
-                                            <Button Content="Upgrade"
-                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).UpgradeCommand}"
-                                                    CommandParameter="{Binding}" />
-                                            <Button Content="Remove" Classes="danger"
-                                                    Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).RemoveCommand}"
-                                                    CommandParameter="{Binding}" />
-                                        </StackPanel>
+                                        <!-- Only offered until the game has been imported. -->
+                                        <Button Content="Setup" IsVisible="{Binding NeedsSetup}" IsEnabled="{Binding !IsSettingUp}"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).SetupCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Upgrade" IsEnabled="{Binding !IsSettingUp}"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).UpgradeCommand}"
+                                                CommandParameter="{Binding}" />
+                                        <Button Content="Remove" Classes="danger" IsEnabled="{Binding !IsSettingUp}"
+                                                Command="{Binding $parent[ItemsControl].((vm:ProjectsViewModel)DataContext).RemoveCommand}"
+                                                CommandParameter="{Binding}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>

@@ -88,7 +88,10 @@ public partial class ProjectsViewModel : ViewModelBase
             var name = NonEmpty(_projectInfo.Read(path)?.Name)
                 ?? _fileSystem.Path.GetFileName(path.TrimEnd('/', '\\'));
             var version = _versionService.DetectProjectVersion(path);
-            Projects.Add(new ProjectItemViewModel(path, name, version?.Raw ?? "", version?.Channel.ToString() ?? ""));
+            Projects.Add(new ProjectItemViewModel(path, name, version?.Raw ?? "", version?.Channel.ToString() ?? "")
+            {
+                NeedsSetup = !_setup.IsAlreadySetUp(path)
+            });
         }
 
         OnPropertyChanged(nameof(HasProjects));
@@ -356,18 +359,30 @@ public partial class ProjectsViewModel : ViewModelBase
         if (succeeded) await MaybeRunSetupAsync(projectPath);
     }
 
-    // Runs the ThunderKit import + pipeline for a freshly created/added/upgraded project, unless disabled
-    // or already imported. Greys the project's row and streams the current step to it while it runs.
+    // Runs setup automatically after a create/add/upgrade, unless disabled or already imported.
     private async Task MaybeRunSetupAsync(string projectPath)
     {
         if (!_config.Config.AutoRunProjectSetup) return;
         if (_setup.IsAlreadySetUp(projectPath)) return;
 
+        var item = Projects.FirstOrDefault(p => string.Equals(p.Path, projectPath, StringComparison.OrdinalIgnoreCase));
+        if (item is not null) await ExecuteSetupAsync(item);
+    }
+
+    // The manual "Setup" action: runs the import for a project that hasn't had the game imported yet.
+    [RelayCommand]
+    private async Task Setup(ProjectItemViewModel? item)
+    {
+        if (item is null || item.IsSettingUp) return;
+        await ExecuteSetupAsync(item);
+    }
+
+    // Runs the ThunderKit import + pipeline for a project, greying its row and streaming the current step
+    // to it. Prompts for the KSP2 path if it isn't set. Shared by the auto-run and the manual Setup action.
+    private async Task ExecuteSetupAsync(ProjectItemViewModel item)
+    {
         var ksp2 = await EnsureKsp2PathAsync();
         if (ksp2 is null) return;
-
-        var item = Projects.FirstOrDefault(p => string.Equals(p.Path, projectPath, StringComparison.OrdinalIgnoreCase));
-        if (item is null) return;
 
         item.IsSettingUp = true;
         item.SetupStatus = "Starting setup...";
@@ -376,7 +391,7 @@ public partial class ProjectsViewModel : ViewModelBase
         ProjectSetupResult result;
         try
         {
-            result = await _setup.RunSetupAsync(projectPath, ksp2, progress, CancellationToken.None);
+            result = await _setup.RunSetupAsync(item.Path, ksp2, progress, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -387,6 +402,7 @@ public partial class ProjectsViewModel : ViewModelBase
         {
             item.IsSettingUp = false;
             item.SetupStatus = "";
+            item.NeedsSetup = !_setup.IsAlreadySetUp(item.Path);
         }
 
         switch (result)
@@ -397,12 +413,12 @@ public partial class ProjectsViewModel : ViewModelBase
             case ProjectSetupResult.UnityVersionMismatch:
                 await _dialog.AlertAsync("Automated setup skipped",
                     ProjectSetupService.UnityMismatchMessage(
-                        _unityService.GetGameUnityVersion(ksp2), _unityService.GetProjectUnityVersion(projectPath)));
+                        _unityService.GetGameUnityVersion(ksp2), _unityService.GetProjectUnityVersion(item.Path)));
                 break;
             case ProjectSetupResult.Failed:
                 await _dialog.AlertAsync("Automated setup failed",
                     "The automated project setup did not finish. See the log at:\n"
-                    + $"{_setup.SetupLogPath(projectPath)}\n\n"
+                    + $"{_setup.SetupLogPath(item.Path)}\n\n"
                     + "Or open the project in Unity to finish setup by hand.");
                 break;
         }

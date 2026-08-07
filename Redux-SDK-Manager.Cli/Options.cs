@@ -122,6 +122,13 @@ public sealed class CloneOptions : BaseOptions, ISetupCapableOptions
     public string? Ksp2 { get; set; }
 }
 
+[Verb("setup", HelpText = "Run the ThunderKit import + Import KSP2 to Editor pipeline on a project after the fact.")]
+public sealed class SetupOptions : ProjectPathOptions
+{
+    [Option("ksp2", Required = false, HelpText = "Path to KSP2_x64.exe to import from, overriding the configured one.")]
+    public string? Ksp2 { get; set; }
+}
+
 [Verb("detect", HelpText = "Report the template version a project is stamped with.")]
 public sealed class DetectOptions : ProjectPathOptions;
 

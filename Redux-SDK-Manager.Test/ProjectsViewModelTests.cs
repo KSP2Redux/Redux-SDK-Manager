@@ -458,6 +458,43 @@ public class ProjectsViewModelTests
     }
 
     [Test]
+    public void Load_MarksNeedsSetup_FromImportState()
+    {
+        var (_, configMock) = Config(PathA);
+        var setupNo = new Mock<IProjectSetupService>();
+        setupNo.Setup(s => s.IsAlreadySetUp(PathA)).Returns(false);
+        Assert.That(NewVm(configMock.Object, setup: setupNo.Object).Projects[0].NeedsSetup, Is.True);
+
+        var (_, configMock2) = Config(PathA);
+        var setupYes = new Mock<IProjectSetupService>();
+        setupYes.Setup(s => s.IsAlreadySetUp(PathA)).Returns(true);
+        Assert.That(NewVm(configMock2.Object, setup: setupYes.Object).Projects[0].NeedsSetup, Is.False);
+    }
+
+    [Test]
+    public async Task Setup_RunsSetupForItem_AndClearsNeedsSetupWhenImported()
+    {
+        var (config, configMock) = Config(PathA);
+        config.Ksp2ExePath = Ksp2Exe;
+        var setup = new Mock<IProjectSetupService>();
+        setup.SetupSequence(s => s.IsAlreadySetUp(PathA)).Returns(false).Returns(true); // Load, then post-setup
+        setup.Setup(s => s.RunSetupAsync(It.IsAny<string>(), It.IsAny<string>(),
+                It.IsAny<IProgress<ProjectSetupProgress>?>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(ProjectSetupResult.Completed);
+
+        var vm = NewVm(configMock.Object, setup: setup.Object, fileSystem: FileSystemWithKsp2());
+        var item = vm.Projects[0];
+        Assert.That(item.NeedsSetup, Is.True);
+
+        await vm.SetupCommand.ExecuteAsync(item);
+
+        setup.Verify(s => s.RunSetupAsync(PathA, Ksp2Exe,
+            It.IsAny<IProgress<ProjectSetupProgress>?>(), It.IsAny<CancellationToken>()), Times.Once);
+        Assert.That(item.NeedsSetup, Is.False);
+        Assert.That(item.IsSettingUp, Is.False);
+    }
+
+    [Test]
     public void OpenFolder_OpensProjectPath()
     {
         var (_, configMock) = Config(PathA);
