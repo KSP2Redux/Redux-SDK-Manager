@@ -2,7 +2,7 @@
   <!-- One version for the whole product. Anchored here so Core, the GUI, and the CLI are always
        stamped identically - the update check reads the Core assembly's version as canonical. -->
   <PropertyGroup>
-    <Version>0.3.0</Version>
+    <Version>0.3.1</Version>
     <!-- Banned-API violations fail the build, not just warn. -->
     <WarningsAsErrors>$(WarningsAsErrors);RS0030</WarningsAsErrors>
   </PropertyGroup>
