@@ -25,7 +25,7 @@ public class UnityServiceTest
 
     private static UnityService NewService(MockFileSystem fs, MockEnvironmentProvider env,
         IProcessRunner? runner = null, IPromptService? prompt = null, ILogService? logService = null)
-        => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(), logService ?? Mock.Of<ILogService>());
+        => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(), logService ?? Mock.Of<ILogService>(), Mock.Of<IRegistryProvider>());
 
     private const string ProjectVersionTxt =
         "m_EditorVersion: 6000.5.0f1\r\nm_EditorVersionWithRevision: 6000.5.0f1 (88b47c5e7076)\r\n";

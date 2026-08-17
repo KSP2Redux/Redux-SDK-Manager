@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
 using System.Text.Json;
@@ -81,7 +82,8 @@ public partial class UnityService(
     IEnvironmentProvider environmentProvider,
     IProcessRunner processRunner,
     IPromptService promptService,
-    ILogService logService) : IUnityService
+    ILogService logService,
+    IRegistryProvider registryProvider) : IUnityService
 {
     private const string UnityExeName = "Unity.exe";
     private const string HubExeName = "Unity Hub.exe";
@@ -366,10 +368,15 @@ public partial class UnityService(
 
     private string? FindUnityHub()
     {
-        var programFiles = environmentProvider.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        if (string.IsNullOrEmpty(programFiles)) return null;
-
-        var hub = fileSystem.Path.Combine(programFiles, "Unity Hub", HubExeName);
+        var installLocation = registryProvider.GetValue("HKLM:\\SOFTWARE\\Unity Technologies\\Hub", "InstallLocation", "none");
+        if (installLocation == "none")
+        {
+        
+            var programFiles = environmentProvider.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+            if (string.IsNullOrEmpty(programFiles)) return null;
+            installLocation = fileSystem.Path.Combine(programFiles, "Unity Hub");
+        }
+        var hub = fileSystem.Path.Combine(installLocation, HubExeName);
         return fileSystem.File.Exists(hub) ? hub : null;
     }
 
