@@ -368,7 +368,8 @@ public partial class UnityService(
 
     private string? FindUnityHub()
     {
-        var installLocation = registryProvider.GetValue("HKLM:\\SOFTWARE\\Unity Technologies\\Hub", "InstallLocation", "none");
+        // Registry.GetValue needs a real base key name (HKEY_LOCAL_MACHINE), not the PSDrive form "HKLM:\".
+        var installLocation = registryProvider.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Unity Technologies\\Hub", "InstallLocation", "none");
         if (installLocation == "none")
         {
         

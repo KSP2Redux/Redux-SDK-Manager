@@ -24,8 +24,28 @@ public class UnityServiceTest
     }
 
     private static UnityService NewService(MockFileSystem fs, MockEnvironmentProvider env,
-        IProcessRunner? runner = null, IPromptService? prompt = null, ILogService? logService = null)
-        => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(), logService ?? Mock.Of<ILogService>(), Mock.Of<IRegistryProvider>());
+        IProcessRunner? runner = null, IPromptService? prompt = null, ILogService? logService = null,
+        IRegistryProvider? registry = null)
+        => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(),
+            logService ?? Mock.Of<ILogService>(), registry ?? NoRegistry());
+
+    // Returns the caller's default (so FindUnityHub gets "none" and falls back to Program Files).
+    // Unlike a bare Mock.Of<IRegistryProvider>(), which returns null and NREs Path.Combine.
+    private static IRegistryProvider NoRegistry()
+    {
+        var mock = new Mock<IRegistryProvider>();
+        mock.Setup(r => r.GetValue(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string key, string value, string def) => def);
+        return mock.Object;
+    }
+
+    private static IRegistryProvider RegistryHubAt(string installLocation)
+    {
+        var mock = new Mock<IRegistryProvider>();
+        mock.Setup(r => r.GetValue(It.IsAny<string>(), "InstallLocation", It.IsAny<string>()))
+            .Returns(installLocation);
+        return mock.Object;
+    }
 
     private const string ProjectVersionTxt =
         "m_EditorVersion: 6000.5.0f1\r\nm_EditorVersionWithRevision: 6000.5.0f1 (88b47c5e7076)\r\n";
@@ -128,6 +148,50 @@ public class UnityServiceTest
 
         WriteFile(fs, HubExe, "exe");
         Assert.That(NewService(fs, env).IsHubInstalled(), Is.True);
+    }
+
+    [Test]
+    public void IsHubInstalled_QueriesRegistry_WithValidBaseKeyName()
+    {
+        var (fs, env) = BuildEnv();
+        var registry = new Mock<IRegistryProvider>();
+        registry.Setup(r => r.GetValue(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()))
+            .Returns((string key, string value, string def) => def);
+
+        NewService(fs, env, registry: registry.Object).IsHubInstalled();
+
+        registry.Verify(r => r.GetValue(
+            "HKEY_LOCAL_MACHINE\\SOFTWARE\\Unity Technologies\\Hub", "InstallLocation", It.IsAny<string>()),
+            Times.Once);
+    }
+
+    [Test]
+    public void IsHubInstalled_FindsHub_AtRegistryInstallLocation()
+    {
+        var (fs, env) = BuildEnv();
+        // Hub installed to a non-default location recorded in the registry; nothing under Program Files.
+        WriteFile(fs, @"D:\Tools\Unity Hub\Unity Hub.exe", "exe");
+
+        Assert.That(NewService(fs, env, registry: RegistryHubAt(@"D:\Tools\Unity Hub")).IsHubInstalled(),
+            Is.True);
+    }
+
+    [Test]
+    public void IsHubInstalled_FallsBackToProgramFiles_WhenRegistryHasNoLocation()
+    {
+        var (fs, env) = BuildEnv();
+        WriteFile(fs, HubExe, "exe");
+
+        Assert.That(NewService(fs, env, registry: NoRegistry()).IsHubInstalled(), Is.True);
+    }
+
+    [Test]
+    public void IsHubInstalled_False_WhenRegistryLocationHasNoHubExe()
+    {
+        var (fs, env) = BuildEnv();
+
+        Assert.That(NewService(fs, env, registry: RegistryHubAt(@"D:\Tools\Unity Hub")).IsHubInstalled(),
+            Is.False);
     }
 
     [Test]
