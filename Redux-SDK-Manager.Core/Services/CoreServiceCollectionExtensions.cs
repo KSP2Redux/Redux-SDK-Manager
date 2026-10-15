@@ -16,6 +16,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<IFileSystem, RealFileSystem>();
         services.AddSingleton(SystemEnvironmentProvider.Instance);
         services.AddSingleton<IProcessRunner, ProcessRunner>();
+        services.AddSingleton<IHostPlatform, HostPlatform>();
         services.AddSingleton<IRegistryProvider, WindowsRegistryProvider>();
 
         // Services

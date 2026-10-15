@@ -4,13 +4,19 @@ on:
   push:
     branches: [ "main" ]
 
-# Windows-only product: publishes a single-file win-x64 GUI and CLI. The version is read from the
-# shared Directory.Build.props; pushing a bump to main tags v{VERSION} and releases once.
+permissions:
+  contents: read
+
+# Publishes a single-file win-x64 GUI and CLI, plus the Linux GUI as an AppImage. The version is read
+# from the shared Directory.Build.props; pushing a bump to main tags v{VERSION} and releases once.
+# Each platform builds in parallel in the matrix, then one job attaches everything to the release.
 jobs:
-  release:
+  version:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+    outputs:
+      VERSION: ${{ steps.version.outputs.VERSION }}
+      TAG: ${{ steps.version.outputs.TAG }}
+      exists: ${{ steps.check_tag.outputs.exists }}
 
     steps:
       - uses: actions/checkout@v4
@@ -36,34 +42,102 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+  build:
+    needs: version
+    if: needs.version.outputs.exists == 'false'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: windows
+          - target: linux-appimage
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Setup .NET
-        if: steps.check_tag.outputs.exists == 'false'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
 
       - name: Publish single-file win-x64
-        if: steps.check_tag.outputs.exists == 'false'
+        if: matrix.target == 'windows'
         run: |
           dotnet publish Redux-SDK-Manager/Redux-SDK-Manager.csproj \
             -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/gui
           dotnet publish Redux-SDK-Manager.Cli/Redux-SDK-Manager.Cli.csproj \
             -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/cli
-          mv ./publish/gui/Redux-SDK-Manager.exe ./publish/redux-sdk-gui.exe
-          mv ./publish/cli/redux-sdk-manager-cli.exe ./publish/redux-sdk-cli.exe
+          mkdir -p ./publish/assets
+          mv ./publish/gui/Redux-SDK-Manager.exe ./publish/assets/redux-sdk-gui.exe
+          mv ./publish/cli/redux-sdk-manager-cli.exe ./publish/assets/redux-sdk-cli.exe
+
+      - name: Publish single-file linux-x64
+        if: matrix.target == 'linux-appimage'
+        run: |
+          dotnet publish Redux-SDK-Manager/Redux-SDK-Manager.csproj \
+            -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -o ./publish/gui
+
+      - name: Download AppImage tooling
+        if: matrix.target == 'linux-appimage'
+        env:
+          # Pinned releases, checked against the digests GitHub published for them.
+          APPIMAGETOOL_URL: https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage
+          APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+          RUNTIME_URL: https://github.com/AppImage/type2-runtime/releases/download/20251108/runtime-x86_64
+          RUNTIME_SHA256: 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+        run: |
+          mkdir -p ./tools
+          curl -fsSL -o ./tools/appimagetool "$APPIMAGETOOL_URL"
+          curl -fsSL -o ./tools/runtime-x86_64 "$RUNTIME_URL"
+          echo "$APPIMAGETOOL_SHA256  ./tools/appimagetool" | sha256sum -c -
+          echo "$RUNTIME_SHA256  ./tools/runtime-x86_64" | sha256sum -c -
+          chmod +x ./tools/appimagetool
+
+      - name: Build AppImage
+        if: matrix.target == 'linux-appimage'
+        run: |
+          # The static type2 runtime embedded here needs no libfuse2 on the user's machine.
+          APPDIR=./publish/AppDir
+          mkdir -p "$APPDIR/usr/bin" ./publish/assets
+          cp ./publish/gui/Redux-SDK-Manager "$APPDIR/usr/bin/"
+          cp packaging/linux/redux-sdk-manager.desktop packaging/linux/redux-sdk-manager.png "$APPDIR/"
+          ln -s usr/bin/Redux-SDK-Manager "$APPDIR/AppRun"
+          # The runner has no FUSE, so appimagetool runs from an extracted copy of itself.
+          ARCH=x86_64 APPIMAGE_EXTRACT_AND_RUN=1 ./tools/appimagetool \
+            --runtime-file ./tools/runtime-x86_64 \
+            "$APPDIR" ./publish/assets/redux-sdk-gui-linux-x64.AppImage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.target }}
+          path: ./publish/assets/
+          if-no-files-found: error
+
+  release:
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: ./publish/assets
+          merge-multiple: true
 
       - name: Create release
-        if: steps.check_tag.outputs.exists == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.version.outputs.TAG }}
-          VERSION: ${{ steps.version.outputs.VERSION }}
+          TAG: ${{ needs.version.outputs.TAG }}
+          VERSION: ${{ needs.version.outputs.VERSION }}
         run: |
           # Publish as a draft first so the update poller never sees a release before its assets
-          # finish uploading, then flip it public once both binaries are attached.
+          # finish uploading, then flip it public once every binary is attached.
           gh release create "$TAG" \
-            ./publish/redux-sdk-gui.exe \
-            ./publish/redux-sdk-cli.exe \
+            ./publish/assets/* \
             --title "Redux SDK Manager v$VERSION" \
             --generate-notes \
             --draft

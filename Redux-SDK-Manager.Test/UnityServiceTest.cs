@@ -25,9 +25,9 @@ public class UnityServiceTest
 
     private static UnityService NewService(MockFileSystem fs, MockEnvironmentProvider env,
         IProcessRunner? runner = null, IPromptService? prompt = null, ILogService? logService = null,
-        IRegistryProvider? registry = null)
+        IRegistryProvider? registry = null, HostOs os = HostOs.Windows)
         => new(fs, env, runner ?? Mock.Of<IProcessRunner>(), prompt ?? new DefaultPromptService(),
-            logService ?? Mock.Of<ILogService>(), registry ?? NoRegistry());
+            logService ?? Mock.Of<ILogService>(), registry ?? NoRegistry(), Mock.Of<IHostPlatform>(p => p.Os == os));
 
     // Returns the caller's default (so FindUnityHub gets "none" and falls back to Program Files).
     // Unlike a bare Mock.Of<IRegistryProvider>(), which returns null and NREs Path.Combine.
@@ -113,6 +113,78 @@ public class UnityServiceTest
 
         Assert.That(installs.Select(i => i.Version),
             Is.EquivalentTo(["6000.4.1f1", "6000.5.0f1", "2022.3.5f1"]));
+    }
+
+    [Test]
+    public void DetectInstalls_OnLinux_FindsEditors_InHomeHubFolder_AndConfigFiles()
+    {
+        var fs = new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Linux));
+        var env = new MockEnvironmentProvider();
+        env.SetFolderPath(System.Environment.SpecialFolder.UserProfile, "/home/me");
+        env.SetFolderPath(System.Environment.SpecialFolder.ApplicationData, "/home/me/.config");
+
+        WriteFile(fs, "/home/me/Unity/Hub/Editor/6000.5.0f1/Editor/Unity", "bin");
+        // A Windows-named exe in the same layout is not a Linux editor.
+        WriteFile(fs, "/home/me/Unity/Hub/Editor/6000.4.1f1/Editor/Unity.exe", "exe");
+        WriteFile(fs, "/home/me/.config/UnityHub/secondaryInstallPath.json", "\"/mnt/editors\"");
+        WriteFile(fs, "/mnt/editors/2022.3.5f1/Editor/Unity", "bin");
+
+        var installs = NewService(fs, env, os: HostOs.Linux).DetectInstalls();
+
+        Assert.That(installs, Is.EquivalentTo(new[]
+        {
+            new Redux_SDK_Manager.Models.UnityInstall("6000.5.0f1", "/home/me/Unity/Hub/Editor/6000.5.0f1/Editor/Unity"),
+            new Redux_SDK_Manager.Models.UnityInstall("2022.3.5f1", "/mnt/editors/2022.3.5f1/Editor/Unity")
+        }));
+    }
+
+    [Test]
+    public void DetectInstalls_OnMac_FindsAppBundles_InApplicationsAndManualEntries()
+    {
+        var fs = new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.MacOS));
+        var env = new MockEnvironmentProvider();
+        env.SetFolderPath(System.Environment.SpecialFolder.UserProfile, "/Users/me");
+
+        WriteFile(fs, "/Applications/Unity/Hub/Editor/6000.5.0f1/Unity.app/Contents/MacOS/Unity", "bin");
+        // Hub records a manually added editor by its .app bundle.
+        WriteFile(fs, "/Users/me/Library/Application Support/UnityHub/editors.json",
+            """
+            {"custom":{"version":"2022.3.5f1","location":["/Volumes/Ext/2022.3.5f1/Unity.app"]}}
+            """);
+        WriteFile(fs, "/Volumes/Ext/2022.3.5f1/Unity.app/Contents/MacOS/Unity", "bin");
+
+        var installs = NewService(fs, env, os: HostOs.MacOS).DetectInstalls();
+
+        Assert.That(installs, Is.EquivalentTo(new[]
+        {
+            new Redux_SDK_Manager.Models.UnityInstall("6000.5.0f1",
+                "/Applications/Unity/Hub/Editor/6000.5.0f1/Unity.app/Contents/MacOS/Unity"),
+            new Redux_SDK_Manager.Models.UnityInstall("2022.3.5f1", "/Volumes/Ext/2022.3.5f1/Unity.app/Contents/MacOS/Unity")
+        }));
+    }
+
+    [Test]
+    public void IsHubInstalled_OnMac_FindsHubAppBundle()
+    {
+        var fs = new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.MacOS));
+        var env = new MockEnvironmentProvider();
+        Assert.That(NewService(fs, env, os: HostOs.MacOS).IsHubInstalled(), Is.False);
+
+        WriteFile(fs, "/Applications/Unity Hub.app/Contents/MacOS/Unity Hub", "bin");
+        Assert.That(NewService(fs, env, os: HostOs.MacOS).IsHubInstalled(), Is.True);
+    }
+
+    [Test]
+    public void IsHubInstalled_OnLinux_FindsPackagedHub_WithoutTouchingRegistry()
+    {
+        var fs = new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Linux));
+        var env = new MockEnvironmentProvider();
+        var registry = new Mock<IRegistryProvider>(MockBehavior.Strict); // throws if consulted
+
+        Assert.That(NewService(fs, env, registry: registry.Object, os: HostOs.Linux).IsHubInstalled(), Is.False);
+
+        WriteFile(fs, "/opt/unityhub/unityhub", "bin");
+        Assert.That(NewService(fs, env, registry: registry.Object, os: HostOs.Linux).IsHubInstalled(), Is.True);
     }
 
     [Test]

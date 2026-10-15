@@ -12,8 +12,9 @@ public class Ksp2DetectorServiceTest
 
     private static MockFileSystem WindowsFs() => new(o => o.SimulatingOperatingSystem(SimulationMode.Windows));
 
-    private static Ksp2DetectorService NewService(MockFileSystem fs, MockEnvironmentProvider? env = null)
-        => new(fs, env ?? new MockEnvironmentProvider(), Mock.Of<ILogService>());
+    private static Ksp2DetectorService NewService(MockFileSystem fs, MockEnvironmentProvider? env = null, HostOs os = HostOs.Windows)
+        => new(fs, env ?? new MockEnvironmentProvider(), Mock.Of<IHostPlatform>(p => p.Os == os),
+            Mock.Of<ILogService>());
 
     private static void WriteFile(MockFileSystem fs, string path, string content)
     {
@@ -79,6 +80,19 @@ public class Ksp2DetectorServiceTest
         var found = NewService(fs).DetectKsp2InstallLocation();
 
         Assert.That(found, Is.EqualTo(epic));
+    }
+
+    [Test]
+    public void OnLinux_DetectsKsp2_InHomeSteamRoot()
+    {
+        var fs = new MockFileSystem(o => o.SimulatingOperatingSystem(SimulationMode.Linux));
+        var env = new MockEnvironmentProvider();
+        env.SetFolderPath(System.Environment.SpecialFolder.UserProfile, "/home/me");
+        var exe = InstallSteamKsp2(fs, "/home/me/.steam/debian-installation");
+
+        var found = NewService(fs, env, os: HostOs.Linux).DetectKsp2InstallLocation();
+
+        Assert.That(found, Is.EqualTo(exe));
     }
 
     [Test]

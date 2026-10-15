@@ -7,11 +7,11 @@
         <RootNamespace>Redux_SDK_Manager.Cli</RootNamespace>
         <AssemblyName>redux-sdk-manager-cli</AssemblyName>
         <InvariantGlobalization>true</InvariantGlobalization>
-        <!-- Windows-only, self-contained single file. No IncludeNativeLibrariesForSelfExtract needed:
+        <!-- Self-contained single file for Windows, Linux and macOS. No IncludeNativeLibrariesForSelfExtract needed:
              a console app has no native libraries to leave beside the exe. -->
         <PublishSingleFile>true</PublishSingleFile>
         <SelfContained>true</SelfContained>
-        <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+        <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
     </PropertyGroup>
 
     <ItemGroup>

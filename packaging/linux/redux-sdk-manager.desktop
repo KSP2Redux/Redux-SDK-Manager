@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Redux SDK Manager
+Comment=Create and upgrade KSP2 Redux mod projects
+Exec=Redux-SDK-Manager
+Icon=redux-sdk-manager
+Terminal=false
+Categories=Development;
