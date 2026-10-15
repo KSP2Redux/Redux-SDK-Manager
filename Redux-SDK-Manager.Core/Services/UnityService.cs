@@ -62,7 +62,7 @@ public interface IUnityService
 
     /// <summary>
     /// Opens a project by launching its matching installed editor directly
-    /// (<c>Unity.exe -projectPath</c>). When that editor isn't installed, asks (via
+    /// (<c>Unity -projectPath</c>). When that editor isn't installed, asks (via
     /// <see cref="IPromptService"/>) whether to install it and, if agreed, opens Unity Hub to
     /// install it. It does not then open the project. The editor appears once the install finishes,
     /// so re-run open. See <see cref="OpenProjectResult"/> for the outcomes.
@@ -83,10 +83,27 @@ public partial class UnityService(
     IProcessRunner processRunner,
     IPromptService promptService,
     ILogService logService,
-    IRegistryProvider registryProvider) : IUnityService
+    IRegistryProvider registryProvider,
+    IHostPlatform hostPlatform) : IUnityService
 {
-    private const string UnityExeName = "Unity.exe";
-    private const string HubExeName = "Unity Hub.exe";
+    private const string WindowsHubExeName = "Unity Hub.exe";
+
+    // Where Hub lands outside Windows, which reads the registry and then Program Files instead. The
+    // Linux apt/rpm package installs to /opt/unityhub and links it into /usr/bin.
+    private static readonly string[] LinuxHubLocations = ["/opt/unityhub/unityhub", "/usr/bin/unityhub"];
+    private const string MacHubLocation = "/Applications/Unity Hub.app/Contents/MacOS/Unity Hub";
+    private const string MacEditorRoot = "/Applications/Unity/Hub/Editor";
+
+    // A macOS editor is an app bundle. Its executable sits inside it at this path.
+    private static readonly string[] MacBundleExeSegments = ["Contents", "MacOS", "Unity"];
+
+    // The editor executable's path inside a Hub version folder.
+    private string[] EditorExeSegments => hostPlatform.Os switch
+    {
+        HostOs.Windows => ["Editor", "Unity.exe"],
+        HostOs.MacOS => ["Unity.app", .. MacBundleExeSegments],
+        _ => ["Editor", "Unity"]
+    };
 
     public IReadOnlyList<UnityInstall> DetectInstalls()
     {
@@ -257,7 +274,7 @@ public partial class UnityService(
 
             foreach (var versionDir in fileSystem.Directory.EnumerateDirectories(root))
             {
-                var exe = fileSystem.Path.Combine(versionDir, "Editor", UnityExeName);
+                var exe = fileSystem.Path.Combine([versionDir, .. EditorExeSegments]);
                 if (fileSystem.File.Exists(exe))
                 {
                     yield return new UnityInstall(fileSystem.Path.GetFileName(versionDir), exe);
@@ -268,10 +285,17 @@ public partial class UnityService(
 
     private IEnumerable<string> EditorRoots()
     {
-        var programFiles = environmentProvider.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        if (!string.IsNullOrEmpty(programFiles))
+        // Hub's default install location: Program Files on Windows, /Applications on macOS, the home
+        // folder on Linux.
+        var defaultRoot = hostPlatform.Os switch
         {
-            yield return fileSystem.Path.Combine(programFiles, "Unity", "Hub", "Editor");
+            HostOs.Windows => UnderFolder(Environment.SpecialFolder.ProgramFiles, "Unity", "Hub", "Editor"),
+            HostOs.MacOS => MacEditorRoot,
+            _ => UnderFolder(Environment.SpecialFolder.UserProfile, "Unity", "Hub", "Editor")
+        };
+        if (!string.IsNullOrEmpty(defaultRoot))
+        {
+            yield return defaultRoot;
         }
 
         var secondary = ReadSecondaryInstallPath();
@@ -329,6 +353,10 @@ public partial class UnityService(
 
                 var exe = ExtractLocation(entry.Value);
                 if (string.IsNullOrEmpty(exe)) continue;
+                if (hostPlatform.Os == HostOs.MacOS && exe.EndsWith(".app", StringComparison.OrdinalIgnoreCase))
+                {
+                    exe = fileSystem.Path.Combine([exe, .. MacBundleExeSegments]);
+                }
 
                 var version = entry.Value.TryGetProperty("version", out var v) && v.ValueKind == JsonValueKind.String
                     ? v.GetString()!
@@ -360,24 +388,38 @@ public partial class UnityService(
         };
     }
 
-    private string? HubConfigFile(string fileName)
+    // Hub keeps the same files in %AppData% on Windows, ~/.config on Linux (both ApplicationData), and
+    // ~/Library/Application Support on macOS.
+    private string? HubConfigFile(string fileName) => hostPlatform.Os == HostOs.MacOS
+        ? UnderFolder(Environment.SpecialFolder.UserProfile, "Library", "Application Support", "UnityHub", fileName)
+        : UnderFolder(Environment.SpecialFolder.ApplicationData, "UnityHub", fileName);
+
+    // A path under a special folder, or null when the OS doesn't have that folder.
+    private string? UnderFolder(Environment.SpecialFolder folder, params string[] segments)
     {
-        var appData = environmentProvider.GetFolderPath(Environment.SpecialFolder.ApplicationData);
-        return string.IsNullOrEmpty(appData) ? null : fileSystem.Path.Combine(appData, "UnityHub", fileName);
+        var root = environmentProvider.GetFolderPath(folder);
+        return string.IsNullOrEmpty(root) ? null : fileSystem.Path.Combine([root, .. segments]);
     }
 
     private string? FindUnityHub()
     {
+        switch (hostPlatform.Os)
+        {
+            case HostOs.Linux:
+                return LinuxHubLocations.FirstOrDefault(fileSystem.File.Exists);
+            case HostOs.MacOS:
+                return fileSystem.File.Exists(MacHubLocation) ? MacHubLocation : null;
+        }
+
         // Registry.GetValue needs a real base key name (HKEY_LOCAL_MACHINE), not the PSDrive form "HKLM:\".
         var installLocation = registryProvider.GetValue("HKEY_LOCAL_MACHINE\\SOFTWARE\\Unity Technologies\\Hub", "InstallLocation", "none");
         if (installLocation == "none")
         {
-        
             var programFiles = environmentProvider.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
             if (string.IsNullOrEmpty(programFiles)) return null;
             installLocation = fileSystem.Path.Combine(programFiles, "Unity Hub");
         }
-        var hub = fileSystem.Path.Combine(installLocation, HubExeName);
+        var hub = fileSystem.Path.Combine(installLocation, WindowsHubExeName);
         return fileSystem.File.Exists(hub) ? hub : null;
     }
 

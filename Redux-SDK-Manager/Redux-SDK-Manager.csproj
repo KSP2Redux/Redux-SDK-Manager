@@ -7,13 +7,13 @@
         <!-- Embeds the icon into the exe itself (Explorer, taskbar, the file). The running window's
              icon is set separately via Window.Icon in MainWindow.axaml. -->
         <ApplicationIcon>Assets\favicon.ico</ApplicationIcon>
-        <!-- Windows-only, self-contained single file. IncludeNativeLibrariesForSelfExtract embeds
+        <!-- Self-contained single file for Windows, Linux and macOS. IncludeNativeLibrariesForSelfExtract embeds
              Skia/HarfBuzz/ANGLE into the exe so the released binary is self-sufficient. -->
         <PublishSingleFile>true</PublishSingleFile>
         <!-- Avoid FAST_FAIL_SET_CONTEXT_DENIED when opening native folder dialogs. -->
         <CETCompat>false</CETCompat>
         <SelfContained>true</SelfContained>
-        <RuntimeIdentifiers>win-x64</RuntimeIdentifiers>
+        <RuntimeIdentifiers>win-x64;linux-x64;osx-x64;osx-arm64</RuntimeIdentifiers>
         <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     </PropertyGroup>
 

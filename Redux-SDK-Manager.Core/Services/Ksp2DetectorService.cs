@@ -14,11 +14,14 @@ public interface IKsp2DetectorService
 }
 
 /// <summary>
-/// Windows-only KSP2 locator, mirrored from the Launcher's detector. It reads Steam's library folders
-/// and app manifest, then falls back to the known Epic and Private Division install paths.
+/// KSP2 locator, mirrored from the Launcher's detector. It reads Steam's library folders and app
+/// manifest, then on Windows falls back to the known Epic and Private Division install paths. On Linux
+/// only the native Steam client's roots are checked (the game itself runs under Proton). macOS has no
+/// KSP2 build, so nothing is detected there and the path is set by hand.
 /// </summary>
 public partial class Ksp2DetectorService(
-    IFileSystem fileSystem, IEnvironmentProvider environmentProvider, ILogService log) : IKsp2DetectorService
+    IFileSystem fileSystem, IEnvironmentProvider environmentProvider, IHostPlatform hostPlatform, ILogService log)
+    : IKsp2DetectorService
 {
     private const string Ksp2SteamAppId = "954850";
     private const string Ksp2ExeName = "KSP2_x64.exe";
@@ -32,7 +35,7 @@ public partial class Ksp2DetectorService(
         @"G:\Program Files\Epic Games\KerbalSpaceProgram2\KSP2_x64.exe"
     ];
 
-    private static readonly string[] SteamRoots =
+    private static readonly string[] WindowsSteamRoots =
     [
         @"C:\Program Files (x86)\Steam",
         @"C:\Program Files\Steam",
@@ -42,11 +45,38 @@ public partial class Ksp2DetectorService(
         @"G:\Steam"
     ];
 
-    public string? DetectKsp2InstallLocation() => DetectSteamInstall() ?? DetectNonSteam();
+    // Relative to the home folder. Distro packages use ~/.steam/steam (often a link to one of the
+    // others), the Debian package ~/.steam/debian-installation, and Flatpak its own app folder.
+    private static readonly string[][] LinuxSteamRoots =
+    [
+        [".steam", "steam"],
+        [".local", "share", "Steam"],
+        [".steam", "debian-installation"],
+        [".var", "app", "com.valvesoftware.Steam", ".local", "share", "Steam"]
+    ];
+
+    public string? DetectKsp2InstallLocation()
+        => DetectSteamInstall() ?? (hostPlatform.Os == HostOs.Windows ? DetectNonSteam() : null);
+
+    private IEnumerable<string> SteamRoots()
+    {
+        if (hostPlatform.Os == HostOs.Windows) return WindowsSteamRoots;
+        if (hostPlatform.Os != HostOs.Linux) return [];
+
+        var home = environmentProvider.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        if (string.IsNullOrEmpty(home)) return [];
+
+        var roots = new List<string>();
+        foreach (var segments in LinuxSteamRoots)
+        {
+            roots.Add(fileSystem.Path.Combine([home, .. segments]));
+        }
+        return roots;
+    }
 
     private string? DetectSteamInstall()
     {
-        foreach (var steamRoot in SteamRoots)
+        foreach (var steamRoot in SteamRoots())
         {
             if (!fileSystem.Directory.Exists(steamRoot)) continue;
 
