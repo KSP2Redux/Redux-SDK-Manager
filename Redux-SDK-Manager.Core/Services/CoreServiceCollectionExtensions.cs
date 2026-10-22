@@ -27,6 +27,7 @@ public static class CoreServiceCollectionExtensions
         services.AddSingleton<ITemplateRepositoryCache, TemplateRepositoryCache>();
         services.AddSingleton<ITemplateCatalogService, TemplateCatalogService>();
         services.AddSingleton<ISdkEmbedService, SdkEmbedService>();
+        services.AddSingleton<IUpmPackageSourceService>(_ => new UpmPackageSourceService());
         services.AddSingleton<IProjectService, ProjectService>();
         services.AddSingleton<IUnityService, UnityService>();
         services.AddSingleton<IKsp2DetectorService, Ksp2DetectorService>();

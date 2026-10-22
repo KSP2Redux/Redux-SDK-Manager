@@ -69,4 +69,18 @@ public class TemplateCatalogServiceTest
         cache.Verify(c => c.EnsureCloned(), Times.Once);
         git.Verify(g => g.Clone(RepoPath, "26w32a", @"C:\dest"), Times.Once);
     }
+
+    [Test]
+    public void ListAvailableVersions_PrefersCanonicalTagToBareSnapshotAlias()
+    {
+        var cache = CacheAt(RepoPath);
+        var git = new Mock<IGitService>();
+        git.Setup(g => g.ListTags(RepoPath)).Returns(new[] { "26w43a", "0.2.9-26w43a", "26w42c", "0.2.10-26w44a" });
+        var service = new TemplateCatalogService(git.Object, cache.Object);
+
+        Assert.That(service.ListAvailableVersions().Select(v => v.Raw),
+            Is.EqualTo(new[] { "0.2.9-26w43a", "26w42c", "0.2.10-26w44a" }));
+        Assert.That(service.DescribeVersions().Select(v => v.Version.Raw),
+            Is.EqualTo(new[] { "0.2.9-26w43a", "26w42c", "0.2.10-26w44a" }));
+    }
 }

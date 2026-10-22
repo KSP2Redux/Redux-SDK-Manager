@@ -23,12 +23,13 @@ public class SdkEmbedServiceTest
     private static string Manifest(string sdkValue) =>
         $$"""{ "dependencies": { "ksp2community.ksp2unitytools": "{{sdkValue}}" } }""";
 
-    private static (SdkEmbedService svc, Mock<IGitService> git, MockFileSystem fs) Build(MockFileSystem fs)
+    private static (SdkEmbedService svc, Mock<IGitService> git, MockFileSystem fs) Build(MockFileSystem fs,
+        IUpmPackageSourceService? source = null)
     {
         var git = new Mock<IGitService>();
         var cache = new Mock<ITemplateRepositoryCache>();
         cache.Setup(c => c.RepositoryPath).Returns(MirrorPath);
-        return (new SdkEmbedService(git.Object, cache.Object, fs, Mock.Of<ILogService>()), git, fs);
+        return (new SdkEmbedService(git.Object, cache.Object, fs, Mock.Of<ILogService>(), source ?? Mock.Of<IUpmPackageSourceService>()), git, fs);
     }
 
     [Test]
@@ -138,5 +139,53 @@ public class SdkEmbedServiceTest
 
         var lines = fs.File.ReadAllText(fs.Path.Combine(ProjectPath, ".gitignore"));
         Assert.That(System.Text.RegularExpressions.Regex.Matches(lines, "ksp2community.ksp2unitytools").Count, Is.EqualTo(1));
+    }
+
+    [TestCase("ksp2redux.sdk", "0.2.10-26w44a")]
+    [TestCase("ksp2community.ksp2unitytools", "0.10.0-26w41a")]
+    public void StageClone_RegistryVersionUsesRecordedCommit(string packageName, string version)
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(ProjectPath, "Packages", "manifest.json"),
+            $$"""{"dependencies": {"{{packageName}}":"{{version}}"} }""");
+        var source = new Mock<IUpmPackageSourceService>();
+        var commit = new string('a', 40);
+        source.Setup(s => s.ResolveCommit(packageName, version)).Returns(commit);
+        var (service, git, _) = Build(fs, source.Object);
+
+        service.StageClone(ProjectPath, TemplateVersion.Parse(version));
+
+        git.Verify(g => g.CloneAndCheckout("https://github.com/KSP2Redux/SDK.git", commit, It.IsAny<string>()), Times.Once);
+        source.Verify(s => s.ResolveCommit(packageName, version), Times.Once);
+    }
+
+    [Test]
+    public void Commit_CurrentPackageUsesItsOwnDirectoryAndIgnoreRule()
+    {
+        var fs = NewFs();
+        var staging = @"C:\staging\sdk";
+        WriteFile(fs, fs.Path.Combine(staging, "package.json"), """{"name":"ksp2redux.sdk"}""");
+        var (service, _, _) = Build(fs);
+
+        service.Commit(ProjectPath, staging);
+
+        Assert.That(fs.File.Exists(@"C:\proj\Packages\ksp2redux.sdk\package.json"), Is.True);
+        Assert.That(fs.Directory.Exists(PackageDir), Is.False);
+        Assert.That(fs.File.ReadAllText(@"C:\proj\.gitignore"), Does.Contain("/Packages/ksp2redux.sdk/"));
+        Assert.That(service.IsEmbedded(ProjectPath), Is.True);
+    }
+
+    [Test]
+    public void ValidateUpgrade_ProtectsLocalLegacySdkChanges()
+    {
+        var fs = NewFs();
+        WriteFile(fs, fs.Path.Combine(PackageDir, "package.json"), """{"name":"ksp2community.ksp2unitytools"}""");
+        WriteFile(fs, fs.Path.Combine(PackageDir, "local-change.txt"), "keep this work");
+        WriteFile(fs, @"C:\template\Packages\manifest.json", """{"dependencies":{"ksp2redux.sdk":"0.2.10-26w44a"}}""");
+        var (service, _, _) = Build(fs);
+
+        Assert.That(() => service.ValidateUpgrade(ProjectPath, @"C:\template"),
+            Throws.InvalidOperationException.With.Message.Contains("embedded"));
+        Assert.That(fs.File.ReadAllText(fs.Path.Combine(PackageDir, "local-change.txt")), Is.EqualTo("keep this work"));
     }
 }

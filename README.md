@@ -45,3 +45,9 @@ used as follows:
 
   version     Display version information.
 ```
+
+## SDK and template versions
+
+New snapshots use full versions such as `0.2.10-26w44a`, with the game version supplied by the release process. Older bare weekly tags remain supported. The manager compares the numeric game version before the weekly label and prefers a canonical full tag when a bare alias is also present.
+
+Templates install the SDK from `https://upm.ksp2redux.org`. Template upgrades merge that scoped registry while preserving other registries and user packages. SDK embedding supports both `ksp2redux.sdk` and the old package identity, and resolves registry versions to the recorded source commit. It does not guess a Git ref or fall back to main when a registry version cannot be resolved. An upgrade that would leave a locally edited SDK under the old package identity stops before altering the project.

@@ -19,6 +19,9 @@ public interface ISdkEmbedService
     /// <summary>True if the SDK package is already embedded in the project's <c>Packages/</c>.</summary>
     bool IsEmbedded(string projectPath);
 
+    /// <summary>Rejects an identity change that would leave a second, locally edited SDK installed.</summary>
+    void ValidateUpgrade(string projectPath, string templatePath);
+
     /// <summary>
     /// Resolves the SDK repo+ref (from <paramref name="manifestSourceDir"/>'s manifest, else the
     /// template for <paramref name="version"/> in the mirror, else the SDK's main branch) and clones
@@ -28,7 +31,7 @@ public interface ISdkEmbedService
 
     /// <summary>
     /// Finalizes an embed: moves <paramref name="stagingDir"/> (when non-null) into
-    /// <c>Packages/ksp2community.ksp2unitytools</c> and ensures <c>.gitignore</c> excludes it. A null
+    /// the matching package directory and ensures <c>.gitignore</c> excludes it. A null
     /// staging directory means the SDK was already embedded, so only the ignore rule is (re)applied.
     /// </summary>
     void Commit(string projectPath, string? stagingDir);
@@ -38,16 +41,33 @@ public sealed class SdkEmbedService(
     IGitService gitService,
     ITemplateRepositoryCache cache,
     IFileSystem fileSystem,
-    ILogService logService) : ISdkEmbedService
+    ILogService logService,
+    IUpmPackageSourceService packageSourceService) : ISdkEmbedService
 {
     public const string SdkPackageName = "ksp2community.ksp2unitytools";
+    public const string CurrentSdkPackageName = "ksp2redux.sdk";
+    private static readonly string[] PackageNames = [CurrentSdkPackageName, SdkPackageName];
     private const string DefaultSdkRepoUrl = "https://github.com/KSP2Redux/SDK.git";
     private const string DefaultSdkRef = "main";
     private const string ManifestRelativePath = "Packages/manifest.json";
-    private static readonly string GitignoreEntry = $"/Packages/{SdkPackageName}/";
 
     public bool IsEmbedded(string projectPath)
-        => fileSystem.Directory.Exists(fileSystem.Path.Combine(projectPath, "Packages", SdkPackageName));
+        => PackageNames.Any(name => fileSystem.Directory.Exists(fileSystem.Path.Combine(projectPath, "Packages", name)));
+
+    public void ValidateUpgrade(string projectPath, string templatePath)
+    {
+        var incoming = PackageNameFromManifest(ReadManifest(templatePath));
+        if (incoming is null) return;
+        foreach (var name in PackageNames)
+        {
+            var path = fileSystem.Path.Combine(projectPath, "Packages", name);
+            if (!fileSystem.Directory.Exists(path)) continue;
+            var actual = PackageNameFromPackage(path) ?? name;
+            if (actual != incoming)
+                throw new InvalidOperationException(
+                    $"This project has an embedded {actual} SDK. Move its local changes to {incoming}, or remove the embedded copy, before changing to this template.");
+        }
+    }
 
     public string StageClone(string manifestSourceDir, TemplateVersion version)
     {
@@ -64,7 +84,8 @@ public sealed class SdkEmbedService(
     {
         if (stagingDir is not null)
         {
-            var target = fileSystem.Path.Combine(projectPath, "Packages", SdkPackageName);
+            var name = PackageNameFromPackage(stagingDir) ?? PackageNameFromManifest(ReadManifest(projectPath)) ?? SdkPackageName;
+            var target = fileSystem.Path.Combine(projectPath, "Packages", name);
             MoveDirectory(stagingDir, target);
             logService.Info($"Embedded SDK into '{target}'.");
         }
@@ -97,7 +118,7 @@ public sealed class SdkEmbedService(
 
     // Reads dependencies["ksp2community.ksp2unitytools"], e.g. "https://.../SDK.git#beta-6", splitting
     // the git URL from its optional '#ref'.
-    private static bool TryParseSdkDependency(string? manifestJson, out string url, out string? reference)
+    private bool TryParseSdkDependency(string? manifestJson, out string url, out string? reference)
     {
         url = "";
         reference = null;
@@ -106,14 +127,23 @@ public sealed class SdkEmbedService(
         try
         {
             using var doc = JsonDocument.Parse(manifestJson);
-            if (!doc.RootElement.TryGetProperty("dependencies", out var deps) ||
-                !deps.TryGetProperty(SdkPackageName, out var dep) ||
-                dep.ValueKind != JsonValueKind.String)
+            if (!doc.RootElement.TryGetProperty("dependencies", out var deps))
             {
                 return false;
             }
 
+            var packageName = PackageNames.FirstOrDefault(name => deps.TryGetProperty(name, out var entry)
+                && entry.ValueKind == JsonValueKind.String);
+            if (packageName is null) return false;
+            var dep = deps.GetProperty(packageName);
+
             var value = dep.GetString() ?? "";
+            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme is not ("https" or "http" or "ssh"))
+            {
+                url = DefaultSdkRepoUrl;
+                reference = packageSourceService.ResolveCommit(packageName, value);
+                return true;
+            }
             var hash = value.IndexOf('#');
             if (hash >= 0)
             {
@@ -135,16 +165,42 @@ public sealed class SdkEmbedService(
 
     private void EnsureGitignore(string projectPath)
     {
+        var name = PackageNames.FirstOrDefault(n => fileSystem.Directory.Exists(fileSystem.Path.Combine(projectPath, "Packages", n)))
+            ?? PackageNameFromManifest(ReadManifest(projectPath)) ?? SdkPackageName;
+        var gitignoreEntry = $"/Packages/{name}/";
         var gitignore = fileSystem.Path.Combine(projectPath, ".gitignore");
         var existing = fileSystem.File.Exists(gitignore) ? fileSystem.File.ReadAllText(gitignore) : "";
 
         var alreadyIgnored = existing
             .Split('\n')
-            .Any(line => line.Trim().TrimEnd('/').Equals(GitignoreEntry.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
+            .Any(line => line.Trim().TrimEnd('/').Equals(gitignoreEntry.TrimEnd('/'), StringComparison.OrdinalIgnoreCase));
         if (alreadyIgnored) return;
 
         var separator = existing.Length == 0 || existing.EndsWith('\n') ? "" : "\n";
-        fileSystem.File.WriteAllText(gitignore, $"{existing}{separator}{GitignoreEntry}\n");
+        fileSystem.File.WriteAllText(gitignore, $"{existing}{separator}{gitignoreEntry}\n");
+    }
+
+    private string? ReadManifest(string path)
+    {
+        var manifest = fileSystem.Path.Combine(path, ManifestRelativePath);
+        return fileSystem.File.Exists(manifest) ? fileSystem.File.ReadAllText(manifest) : null;
+    }
+
+    private string? PackageNameFromPackage(string path)
+    {
+        var manifest = fileSystem.Path.Combine(path, "package.json");
+        if (!fileSystem.File.Exists(manifest)) return null;
+        using var document = JsonDocument.Parse(fileSystem.File.ReadAllText(manifest));
+        return document.RootElement.TryGetProperty("name", out var name)
+            && PackageNames.Contains(name.GetString()) ? name.GetString() : null;
+    }
+
+    private static string? PackageNameFromManifest(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("dependencies", out var dependencies)) return null;
+        return PackageNames.FirstOrDefault(name => dependencies.TryGetProperty(name, out _));
     }
 
     // Directory.Move is a rename on the same volume; a cross-volume move throws, so fall back to a

@@ -177,6 +177,7 @@ public class ProjectService(
         try
         {
             catalogService.FetchVersion(toVersion, newFetch);
+            sdkEmbedService.ValidateUpgrade(projectPath, newFetch);
 
             // Stage the SDK clone (from the version being applied) before overlaying, so a clone
             // failure aborts before the project is touched. Skip if it's already embedded.

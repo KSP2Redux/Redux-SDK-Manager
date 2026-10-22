@@ -31,14 +31,13 @@ public partial class TemplateCatalogService(IGitService gitService, ITemplateRep
     public IReadOnlyList<TemplateVersion> ListAvailableVersions()
     {
         cache.Sync();
-        return gitService.ListTags(cache.RepositoryPath).Select(TemplateVersion.Parse).ToList();
+        return AvailableTags().ToList();
     }
 
     public IReadOnlyList<TemplateVersionInfo> DescribeVersions()
     {
         cache.Sync();
-        return gitService.ListTags(cache.RepositoryPath)
-            .Select(TemplateVersion.Parse)
+        return AvailableTags()
             .Select(version =>
             {
                 var content = gitService.ShowFile(cache.RepositoryPath, version.Raw, ProjectVersionFile);
@@ -51,6 +50,15 @@ public partial class TemplateCatalogService(IGitService gitService, ITemplateRep
                 };
             })
             .ToList();
+    }
+
+    private IEnumerable<TemplateVersion> AvailableTags()
+    {
+        var versions = gitService.ListTags(cache.RepositoryPath).Select(TemplateVersion.Parse).ToList();
+        var versionedStamps = versions.Where(v => v.GameVersion is not null)
+            .Select(v => v.SnapshotStamp).ToHashSet();
+        return versions.Where(v => v.Channel != TemplateChannel.Snapshot || v.GameVersion is not null
+            || !versionedStamps.Contains(v.SnapshotStamp));
     }
 
     public void FetchVersion(TemplateVersion version, string destinationPath)

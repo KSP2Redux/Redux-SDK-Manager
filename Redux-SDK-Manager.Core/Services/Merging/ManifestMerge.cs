@@ -49,6 +49,7 @@ public static class ManifestMerge
             // Ingest: union - template wins on shared ids, adds new, removes nothing.
             foreach (var (id, version) in theirs) result[id] = version;
         }
+
         else
         {
             // Upgrade: apply what the template changed between base and theirs.
@@ -66,6 +67,11 @@ public static class ManifestMerge
             }
         }
 
+        if (theirs.ContainsKey("ksp2redux.sdk"))
+            result.Remove("ksp2community.ksp2unitytools");
+        else if (theirs.ContainsKey("ksp2community.ksp2unitytools"))
+            result.Remove("ksp2redux.sdk");
+
         var dependencies = new JsonObject();
         foreach (var (id, version) in result.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
@@ -73,7 +79,40 @@ public static class ManifestMerge
         }
 
         mine["dependencies"] = dependencies;
+        MergeScopedRegistries(mine, theirsJson);
         return mine.ToJsonString(WriteOptions);
+    }
+
+    private static void MergeScopedRegistries(JsonObject mine, string theirsJson)
+    {
+        if (JsonNode.Parse(theirsJson)?["scopedRegistries"] is not JsonArray incoming) return;
+        if (mine["scopedRegistries"] is not JsonArray registries)
+        {
+            mine["scopedRegistries"] = incoming.DeepClone();
+            return;
+        }
+
+        foreach (var registry in incoming.OfType<JsonObject>())
+        {
+            var url = registry["url"]?.GetValue<string>();
+            if (string.IsNullOrEmpty(url)) continue;
+            var existing = registries.OfType<JsonObject>().FirstOrDefault(r =>
+                string.Equals(r["url"]?.GetValue<string>().TrimEnd('/'), url.TrimEnd('/'),
+                    StringComparison.OrdinalIgnoreCase));
+            if (existing is null)
+            {
+                registries.Add(registry.DeepClone());
+                continue;
+            }
+
+            var scopes = existing["scopes"] as JsonArray ?? new JsonArray();
+            if (existing["scopes"] is null) existing["scopes"] = scopes;
+            foreach (var scope in registry["scopes"]?.AsArray() ?? [])
+            {
+                if (!scopes.Any(s => s?.GetValue<string>() == scope?.GetValue<string>()))
+                    scopes.Add(scope?.DeepClone());
+            }
+        }
     }
 
     private static Dictionary<string, string> Dependencies(string json)
